@@ -1,4 +1,4 @@
-#!/bin/bash -i
+#!/bin/bash
 
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -61,8 +61,7 @@ run_deltastreamer () {
     --source-ordering-field ts --table-type MERGE_ON_READ \
     --target-base-path file://${OUTPUT_DIR} \
     --target-table utilities_tbl  --op UPSERT
-    lastCommand=$(echo `history |tail -n2 |head -n1` | sed 's/[0-9]* //')
-    echo "SPARK COMMAND IS ${lastCommand}"
+
     if [ "$?" -ne 0 ]; then
         echo "::error::validate.sh deltastreamer failed"
         exit 1
@@ -124,27 +123,27 @@ test_utilities_bundle_upgrade () {
 
 SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 
-echo "::warning::validate.sh testing utilities bundle"
-MAIN_JAR=$JAR_DATA/utilities.jar
-ADDITIONAL_JARS=""
-OUTPUT_DIR=/tmp/hudi-utilities-test/
-COMMANDS_FILE=$UTILITIES_DATA/commands.scala
-test_utilities_bundle
-if [ "$?" -ne 0 ]; then
-    exit 1
-fi
-echo "::warning::validate.sh done testing utilities bundle"
+# echo "::warning::validate.sh testing utilities bundle"
+# MAIN_JAR=$JAR_DATA/utilities.jar
+# ADDITIONAL_JARS=""
+# OUTPUT_DIR=/tmp/hudi-utilities-test/
+# COMMANDS_FILE=$UTILITIES_DATA/commands.scala
+# test_utilities_bundle
+# if [ "$?" -ne 0 ]; then
+#     exit 1
+# fi
+# echo "::warning::validate.sh done testing utilities bundle"
 
-echo "::warning::validate.sh testing utilities slim bundle"
-MAIN_JAR=$JAR_DATA/utilities-slim.jar
-ADDITIONAL_JARS=$JAR_DATA/spark.jar
-OUTPUT_DIR=/tmp/hudi-utilities-slim-test/
-COMMANDS_FILE=$UTILITIES_DATA/slimcommands.scala
-test_utilities_bundle
-if [ "$?" -ne 0 ]; then
-    exit 1
-fi
-echo "::warning::validate.sh done testing utilities slim bundle"
+# echo "::warning::validate.sh testing utilities slim bundle"
+# MAIN_JAR=$JAR_DATA/utilities-slim.jar
+# ADDITIONAL_JARS=$JAR_DATA/spark.jar
+# OUTPUT_DIR=/tmp/hudi-utilities-slim-test/
+# COMMANDS_FILE=$UTILITIES_DATA/slimcommands.scala
+# test_utilities_bundle
+# if [ "$?" -ne 0 ]; then
+#     exit 1
+# fi
+# echo "::warning::validate.sh done testing utilities slim bundle"
 
 
 echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
