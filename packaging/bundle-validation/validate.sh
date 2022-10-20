@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -i
 
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -52,7 +52,7 @@ test_spark_bundle () {
 
 run_deltastreamer () {
     echo "::warning::validate.sh running deltastreamer"
-    SPARK_COMMAND=$SPARK_HOME/bin/spark-submit --driver-memory 8g --executor-memory 8g \
+    $SPARK_HOME/bin/spark-submit --driver-memory 8g --executor-memory 8g \
     --class org.apache.hudi.utilities.deltastreamer.HoodieDeltaStreamer \
      $DELTASTREAMER_SOURCES \
     --props $UTILITIES_DATA/newProps.props \
@@ -61,8 +61,8 @@ run_deltastreamer () {
     --source-ordering-field ts --table-type MERGE_ON_READ \
     --target-base-path file://${OUTPUT_DIR} \
     --target-table utilities_tbl  --op UPSERT
-    echo "SPARK COMMAND IS ${SPARK_COMMAND}"
-    $SPARK_COMMAND
+    lastCommand=$(echo `history |tail -n2 |head -n1` | sed 's/[0-9]* //')
+    echo "SPARK COMMAND IS ${lastCommand}"
     if [ "$?" -ne 0 ]; then
         echo "::error::validate.sh deltastreamer failed"
         exit 1
