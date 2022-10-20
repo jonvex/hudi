@@ -101,7 +101,7 @@ test_utilities_bundle_upgrade () {
     mkdir $UTILITIES_DATA/tmpdata
     mv $UTILITIES_DATA/data/batch_2.json $UTILITIES_DATA/tmpdata/
     
-    DELTASTREAMER_SOURCES="--packages org.apache.hudi:hudi-utilities-bundle_${SCALA_PROFILE#'scala-'}:${UPGRADE_VERSION}"
+    DELTASTREAMER_SOURCES="org.apache.hudi:hudi-utilities-bundle_${SCALA_PROFILE#'scala-'}:${UPGRADE_VERSION}"
     OUTPUT_DIR=/tmp/upgrade-test-${UPGRADE_VERSION}/
     run_deltastreamer
     if [ "$?" -ne 0 ]; then
