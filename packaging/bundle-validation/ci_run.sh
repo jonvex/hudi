@@ -88,6 +88,8 @@ docker build \
 --build-arg DERBY_VERSION=$DERBY_VERSION \
 --build-arg SPARK_VERSION=$SPARK_VERSION \
 --build-arg SPARK_HADOOP_VERSION=$SPARK_HADOOP_VERSION \
+--build-arg SPARK_PROFILE=$SPARK_PROFILE \
+--build-arg SCALA_PROFILE=$SCALA_PROFILE \
 -t hudi-ci-bundle-validation:$IMAGE_TAG \
 .
 

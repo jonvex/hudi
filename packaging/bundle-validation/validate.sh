@@ -39,7 +39,7 @@ test_spark_bundle () {
     echo "::warning::validate.sh hive setup complete. Testing"
     $SPARK_HOME/bin/spark-shell --jars $JAR_DATA/spark.jar < $HIVE_DATA/validate.scala
     if [ "$?" -ne 0 ]; then
-        echo "::error::validate.sh failed hive testing)"
+        echo "::error::validate.sh failed hive testing"
         exit 1
     fi
     echo "::warning::validate.sh hive testing succesfull. Cleaning up hive sync"
@@ -50,23 +50,34 @@ test_spark_bundle () {
     rm -f $SPARK_HOME/conf/spark-defaults.conf
 }
 
-test_utilities_bundle () {
-    OPT_JARS=""
-    if [[ -n $ADDITIONAL_JARS ]]; then
-        OPT_JARS="--jars $ADDITIONAL_JARS"
-    fi
+run_deltastreamer () {
     echo "::warning::validate.sh running deltastreamer"
     $SPARK_HOME/bin/spark-submit --driver-memory 8g --executor-memory 8g \
     --class org.apache.hudi.utilities.deltastreamer.HoodieDeltaStreamer \
-    $OPT_JARS $MAIN_JAR \
+     $DELTASTREAMER_SOURCES \
     --props $UTILITIES_DATA/newProps.props \
     --schemaprovider-class org.apache.hudi.utilities.schema.FilebasedSchemaProvider \
     --source-class org.apache.hudi.utilities.sources.JsonDFSSource \
     --source-ordering-field ts --table-type MERGE_ON_READ \
     --target-base-path file://${OUTPUT_DIR} \
     --target-table utilities_tbl  --op UPSERT
+    if [ "$?" -ne 0 ]; then
+        echo "::error::validate.sh deltastreamer failed"
+        exit 1
+    fi
     echo "::warning::validate.sh done with deltastreamer"
+}
 
+test_utilities_bundle () {
+    OPT_JARS=""
+    if [[ -n $ADDITIONAL_JARS ]]; then
+        OPT_JARS="--jars $ADDITIONAL_JARS"
+    fi
+    DELTASTREAMER_SOURCES="$OPT_JARS $MAIN_JAR"
+    run_deltastreamer
+    if [ "$?" -ne 0 ]; then
+        exit 1
+    fi
     OUTPUT_SIZE=$(du -s ${OUTPUT_DIR} | awk '{print $1}')
     if [[ -z $OUTPUT_SIZE || "$OUTPUT_SIZE" -lt "550" ]]; then
         echo "::error::validate.sh deltastreamer output folder ($OUTPUT_SIZE) is smaller than expected (550) )" 
@@ -84,6 +95,23 @@ test_utilities_bundle () {
         exit 1
     fi
     echo "::warning::validate.sh done validating deltastreamer in spark shell"
+}
+
+test_utilities_bundle_upgrade () {
+    mkdir $UTILITIES_DATA/tmpdata
+    mv $UTILITIES_DATA/data/batch_2.json $UTILITIES_DATA/tmpdata/
+    
+    DELTASTREAMER_SOURCES="--packages org.apache.hudi:hudi-utilities-bundle_${SCALA_PROFILE#'scala-'}:${UPGRADE_VERSION}"
+    OUTPUT_DIR=/tmp/upgrade-test-${UPGRADE_VERSION}/
+    run_deltastreamer
+    if [ "$?" -ne 0 ]; then
+        exit 1
+    fi
+    mv $UTILITIES_DATA/tmpdata/batch_2.json $UTILITIES_DATA/data/
+    test_utilities_bundle
+    if [ "$?" -ne 0 ]; then
+        exit 1
+    fi
 }
 
 
@@ -115,4 +143,18 @@ if [ "$?" -ne 0 ]; then
     exit 1
 fi
 echo "::warning::validate.sh done testing utilities slim bundle"
+
+
+echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
+MAIN_JAR=$JAR_DATA/utilities.jar
+ADDITIONAL_JARS=""
+COMMANDS_FILE=$UTILITIES_DATA/commands.scala
+UPGRADE_VERSION="0.12.0"
+test_utilities_bundle_upgrade
+if [ "$?" -ne 0 ]; then
+    exit 1
+fi
+echo "::warning::validate.sh done testing utilities bundle upgrade from 0.12.0"
+
+
 
