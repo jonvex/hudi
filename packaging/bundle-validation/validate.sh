@@ -52,7 +52,7 @@ test_spark_bundle () {
 
 run_deltastreamer () {
     echo "::warning::validate.sh running deltastreamer"
-    $SPARK_HOME/bin/spark-submit --driver-memory 8g --executor-memory 8g \
+    SPARK_COMMAND=$SPARK_HOME/bin/spark-submit --driver-memory 8g --executor-memory 8g \
     --class org.apache.hudi.utilities.deltastreamer.HoodieDeltaStreamer \
      $DELTASTREAMER_SOURCES \
     --props $UTILITIES_DATA/newProps.props \
@@ -61,6 +61,8 @@ run_deltastreamer () {
     --source-ordering-field ts --table-type MERGE_ON_READ \
     --target-base-path file://${OUTPUT_DIR} \
     --target-table utilities_tbl  --op UPSERT
+    echo "SPARK COMMAND IS ${SPARK_COMMAND}"
+    $SPARK_COMMAND
     if [ "$?" -ne 0 ]; then
         echo "::error::validate.sh deltastreamer failed"
         exit 1
