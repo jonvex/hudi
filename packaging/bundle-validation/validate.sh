@@ -50,6 +50,13 @@ test_spark_bundle () {
     rm -f $SPARK_HOME/conf/spark-defaults.conf
 }
 
+make_commands_file () {
+    OUTPUT_DIR="/tmp/${OUTPUT_DIR_NAME}/"
+    COMMANDS_FILE=$UTILITIES_DATA/commands-${OUTPUT_DIR_NAME}.scala
+    echo "val hudiDf = spark.read.format(\"org.apache.hudi\").load(\"${OUTPUT_DIR}\")" >> $COMMANDS_FILE
+    cat $UTILITIES_DATA/commands.scala >> $COMMANDS_FILE
+}
+
 run_deltastreamer () {
     echo "::warning::validate.sh running deltastreamer"
     $SPARK_HOME/bin/spark-submit --driver-memory 8g --executor-memory 8g \
@@ -103,7 +110,6 @@ test_utilities_bundle_upgrade () {
     mv $UTILITIES_DATA/data/batch_2.json $UTILITIES_DATA/tmpdata/
     
     DELTASTREAMER_SOURCES="org.apache.hudi:hudi-utilities-bundle_${SCALA_PROFILE#'scala-'}:${UPGRADE_VERSION}"
-    OUTPUT_DIR=/tmp/upgrade-test-${UPGRADE_VERSION}/
     run_deltastreamer
     if [ "$?" -ne 0 ]; then
         exit 1
@@ -123,34 +129,35 @@ test_utilities_bundle_upgrade () {
 
 SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 
-# echo "::warning::validate.sh testing utilities bundle"
-# MAIN_JAR=$JAR_DATA/utilities.jar
-# ADDITIONAL_JARS=""
-# OUTPUT_DIR=/tmp/hudi-utilities-test/
-# COMMANDS_FILE=$UTILITIES_DATA/commands.scala
-# test_utilities_bundle
-# if [ "$?" -ne 0 ]; then
-#     exit 1
-# fi
-# echo "::warning::validate.sh done testing utilities bundle"
+echo "::warning::validate.sh testing utilities bundle"
+MAIN_JAR=$JAR_DATA/utilities.jar
+ADDITIONAL_JARS=""
+OUTPUT_DIR_NAME=hudi-utilities-test
+make_commands_file
+test_utilities_bundle
+if [ "$?" -ne 0 ]; then
+    exit 1
+fi
+echo "::warning::validate.sh done testing utilities bundle"
 
-# echo "::warning::validate.sh testing utilities slim bundle"
-# MAIN_JAR=$JAR_DATA/utilities-slim.jar
-# ADDITIONAL_JARS=$JAR_DATA/spark.jar
-# OUTPUT_DIR=/tmp/hudi-utilities-slim-test/
-# COMMANDS_FILE=$UTILITIES_DATA/slimcommands.scala
-# test_utilities_bundle
-# if [ "$?" -ne 0 ]; then
-#     exit 1
-# fi
-# echo "::warning::validate.sh done testing utilities slim bundle"
+echo "::warning::validate.sh testing utilities slim bundle"
+MAIN_JAR=$JAR_DATA/utilities-slim.jar
+ADDITIONAL_JARS=$JAR_DATA/spark.jar
+OUTPUT_DIR_NAME=hudi-utilities-slim-test
+make_commands_file
+test_utilities_bundle
+if [ "$?" -ne 0 ]; then
+    exit 1
+fi
+echo "::warning::validate.sh done testing utilities slim bundle"
 
 
 echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
 MAIN_JAR=$JAR_DATA/utilities.jar
 ADDITIONAL_JARS=""
-COMMANDS_FILE=$UTILITIES_DATA/commands.scala
 UPGRADE_VERSION="0.12.0"
+OUTPUT_DIR_NAME=upgrade-test-${UPGRADE_VERSION}
+make_commands_file
 test_utilities_bundle_upgrade
 if [ "$?" -ne 0 ]; then
     exit 1

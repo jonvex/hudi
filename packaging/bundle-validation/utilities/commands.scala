@@ -1,4 +1,3 @@
-val hudiDf = spark.read.format("org.apache.hudi").load("/tmp/hudi-utilities-test/")
 val inputDf = spark.read.format("json").load("/opt/bundle-validation/data/utilities/data")
 hudiDf.registerTempTable("hudi_tbl")
 inputDf.registerTempTable("src_tbl")
