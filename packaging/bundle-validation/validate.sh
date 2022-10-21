@@ -114,6 +114,8 @@ test_utilities_bundle () {
 test_utilities_bundle_upgrade () {
     mkdir $UTILITIES_DATA/tmpdata
     mv $UTILITIES_DATA/data/batch_2.json $UTILITIES_DATA/tmpdata/
+    echo "::debug::data folder contents below"
+    ls $UTILITIES_DATA/data
     make_commands_file
     EXPECTED_SIZE=275
     test_utilities_bundle
@@ -124,6 +126,8 @@ test_utilities_bundle_upgrade () {
     ADDITIONAL_JARS=""
     EXPECTED_SIZE=550
     mv $UTILITIES_DATA/tmpdata/batch_2.json $UTILITIES_DATA/data/
+    echo "::debug::data folder contents below"
+    ls $UTILITIES_DATA/data
     test_utilities_bundle
     if [ "$?" -ne 0 ]; then
         exit 1
@@ -219,34 +223,34 @@ fi
 echo "::warning::validate.sh done testing utilities bundle upgrade from 0.12.1"
 
 
-echo "::warning::validate.sh testing utilities bundle downgrade to 0.11.1"
-DOWNGRADE_MAIN_JAR="${UTILITIES_BUNDLE_0_11_1}"
-DOWNGRADE_ADDITIONAL_JARS=""
-OUTPUT_DIR_NAME="downgrade-test_0_11_1"
-test_utilities_bundle_downgrade
-if [ "$?" -ne 0 ]; then
-    exit 1
-fi
-echo "::warning::validate.sh done testing utilities bundle downgrade to 0.11.1"
+# echo "::warning::validate.sh testing utilities bundle downgrade to 0.11.1"
+# DOWNGRADE_MAIN_JAR="${UTILITIES_BUNDLE_0_11_1}"
+# DOWNGRADE_ADDITIONAL_JARS=""
+# OUTPUT_DIR_NAME="downgrade-test_0_11_1"
+# test_utilities_bundle_downgrade
+# if [ "$?" -ne 0 ]; then
+#     exit 1
+# fi
+# echo "::warning::validate.sh done testing utilities bundle downgrade to 0.11.1"
 
 
-echo "::warning::validate.sh testing utilities bundle downgrade to 0.12.0"
-DOWNGRADE_MAIN_JAR="${UTILITIES_BUNDLE_0_12_0}"
-DOWNGRADE_ADDITIONAL_JARS=""
-OUTPUT_DIR_NAME="downgrade-test_0_12_0"
-test_utilities_bundle_downgrade
-if [ "$?" -ne 0 ]; then
-    exit 1
-fi
-echo "::warning::validate.sh done testing utilities bundle downgrade to 0.12.0"
+# echo "::warning::validate.sh testing utilities bundle downgrade to 0.12.0"
+# DOWNGRADE_MAIN_JAR="${UTILITIES_BUNDLE_0_12_0}"
+# DOWNGRADE_ADDITIONAL_JARS=""
+# OUTPUT_DIR_NAME="downgrade-test_0_12_0"
+# test_utilities_bundle_downgrade
+# if [ "$?" -ne 0 ]; then
+#     exit 1
+# fi
+# echo "::warning::validate.sh done testing utilities bundle downgrade to 0.12.0"
 
-echo "::warning::validate.sh testing utilities bundle downgrade to 0.12.1"
-DOWNGRADE_MAIN_JAR="${UTILITIES_BUNDLE_0_12_1}"
-DOWNGRADE_ADDITIONAL_JARS=""
-OUTPUT_DIR_NAME="downgrade-test_0_12_1"
-test_utilities_bundle_downgrade
-if [ "$?" -ne 0 ]; then
-    exit 1
-fi
-echo "::warning::validate.sh done testing utilities bundle downgrade to 0.12.1"
+# echo "::warning::validate.sh testing utilities bundle downgrade to 0.12.1"
+# DOWNGRADE_MAIN_JAR="${UTILITIES_BUNDLE_0_12_1}"
+# DOWNGRADE_ADDITIONAL_JARS=""
+# OUTPUT_DIR_NAME="downgrade-test_0_12_1"
+# test_utilities_bundle_downgrade
+# if [ "$?" -ne 0 ]; then
+#     exit 1
+# fi
+# echo "::warning::validate.sh done testing utilities bundle downgrade to 0.12.1"
 
