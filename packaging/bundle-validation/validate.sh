@@ -61,7 +61,7 @@ run_deltastreamer () {
     echo "::warning::validate.sh running deltastreamer"
     $SPARK_HOME/bin/spark-submit --driver-memory 8g --executor-memory 8g \
     --class org.apache.hudi.utilities.deltastreamer.HoodieDeltaStreamer \
-     $OPT_JARS $MAIN_JAR \
+    $OPT_JARS $MAIN_JAR \
     --props $UTILITIES_DATA/newProps.props \
     --schemaprovider-class org.apache.hudi.utilities.schema.FilebasedSchemaProvider \
     --source-class org.apache.hudi.utilities.sources.JsonDFSSource \
@@ -156,7 +156,6 @@ SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 
 echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
 UPGRADE_VERSION="0_12_0"
-
 make_commands_file
 echo "::debug::commands file name is ${COMMANDS_FILE}"
 FILE_CONTENTS=$(cat $COMMANDS_FILE)

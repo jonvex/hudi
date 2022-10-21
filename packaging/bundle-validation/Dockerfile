@@ -27,12 +27,9 @@ ARG HIVE_VERSION=3.1.3
 ARG DERBY_VERSION=10.14.1.0
 ARG SPARK_VERSION=3.1.3
 ARG SPARK_HADOOP_VERSION=2.7
-ARG SPARK_PROFILE=3.1
-ARG SCALA_PROFILE=2.12
+ARG SCALA_VERSION=2.12
 
 
-ENV SPARK_PROFILE=${SPARK_PROFILE}
-ENV SCALA_PROFILE=${SCALA_PROFILE}
 
 RUN wget https://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz -P "$WORKDIR" \
     && tar -xf $WORKDIR/hadoop-$HADOOP_VERSION.tar.gz -C $WORKDIR/ \
@@ -54,14 +51,14 @@ RUN wget https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK
     && rm $WORKDIR/spark-$SPARK_VERSION-bin-hadoop$SPARK_HADOOP_VERSION.tgz
 ENV SPARK_HOME=$WORKDIR/spark-$SPARK_VERSION-bin-hadoop$SPARK_HADOOP_VERSION
 
-RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_PROFILE/0.11.1/hudi-utilities-bundle_$SCALA_PROFILE-0.11.1.jar -P "$WORKDIR" 
-ENV UTILITIES_BUNDLE-0_11_1=$WORKDIR/hudi-utilities-bundle_$SCALA_PROFILE-0.11.1.jar
+RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_VERSION/0.11.1/hudi-utilities-bundle_$SCALA_VERSION-0.11.1.jar -P "$WORKDIR" 
+ENV UTILITIES_BUNDLE-0_11_1=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.11.1.jar
 
-RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_PROFILE/0.12.0/hudi-utilities-bundle_$SCALA_PROFILE-0.12.0.jar -P "$WORKDIR" 
-ENV UTILITIES_BUNDLE-0_12_0=$WORKDIR/hudi-utilities-bundle_$SCALA_PROFILE-0.12.0.jar
+RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_VERSION/0.12.0/hudi-utilities-bundle_$SCALA_VERSION-0.12.0.jar -P "$WORKDIR" 
+ENV UTILITIES_BUNDLE-0_12_0=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.12.0.jar
 
-RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_PROFILE/0.12.1/hudi-utilities-bundle_$SCALA_PROFILE-0.12.1.jar -P "$WORKDIR" 
-ENV UTILITIES_BUNDLE-0_12_1=$WORKDIR/hudi-utilities-bundle_$SCALA_PROFILE-0.12.1.jar
+RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_VERSION/0.12.1/hudi-utilities-bundle_$SCALA_VERSION-0.12.1.jar -P "$WORKDIR" 
+ENV UTILITIES_BUNDLE-0_12_1=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.12.1.jar
 
 
 
