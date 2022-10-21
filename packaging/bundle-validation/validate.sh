@@ -159,9 +159,9 @@ SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 
 
 echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
-MAIN_JAR=${UTILITIES_BUNDLE-0_12_0}
+MAIN_JAR="${UTILITIES_BUNDLE_0_12_0}"
 OPT_JARS=""
-OUTPUT_DIR_NAME="upgrade-test-0_12_0"
+OUTPUT_DIR_NAME="upgrade-test_0_12_0"
 test_utilities_bundle_upgrade
 if [ "$?" -ne 0 ]; then
     exit 1

@@ -52,13 +52,13 @@ RUN wget https://archive.apache.org/dist/spark/spark-$SPARK_VERSION/spark-$SPARK
 ENV SPARK_HOME=$WORKDIR/spark-$SPARK_VERSION-bin-hadoop$SPARK_HADOOP_VERSION
 
 RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_VERSION/0.11.1/hudi-utilities-bundle_$SCALA_VERSION-0.11.1.jar -P "$WORKDIR" 
-ENV UTILITIES_BUNDLE-0_11_1=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.11.1.jar
+ENV UTILITIES_BUNDLE_0_11_1=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.11.1.jar
 
 RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_VERSION/0.12.0/hudi-utilities-bundle_$SCALA_VERSION-0.12.0.jar -P "$WORKDIR" 
-ENV UTILITIES_BUNDLE-0_12_0=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.12.0.jar
+ENV UTILITIES_BUNDLE_0_12_0=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.12.0.jar
 
 RUN wget https://repo1.maven.org/maven2/org/apache/hudi/hudi-utilities-bundle_$SCALA_VERSION/0.12.1/hudi-utilities-bundle_$SCALA_VERSION-0.12.1.jar -P "$WORKDIR" 
-ENV UTILITIES_BUNDLE-0_12_1=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.12.1.jar
+ENV UTILITIES_BUNDLE_0_12_1=$WORKDIR/hudi-utilities-bundle_$SCALA_VERSION-0.12.1.jar
 
 
 
