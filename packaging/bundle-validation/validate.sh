@@ -110,6 +110,7 @@ test_utilities_bundle_upgrade () {
     MAIN_JAR="UTILITIES_BUNDLE-${UPGRADE_VERSION}"
     OPT_JARS=""
     OUTPUT_DIR_NAME="upgrade-test-${UPGRADE_VERSION}"
+    make_commands_file
     run_deltastreamer
     if [ "$?" -ne 0 ]; then
         exit 1
@@ -156,7 +157,6 @@ SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 
 echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
 UPGRADE_VERSION="0_12_0"
-make_commands_file
 echo "::debug::commands file name is ${COMMANDS_FILE}"
 FILE_CONTENTS=$(cat $COMMANDS_FILE)
 echo "::debug::commands file contents is $FILE_CONTENTS"
