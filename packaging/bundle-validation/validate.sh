@@ -55,6 +55,9 @@ make_commands_file () {
     COMMANDS_FILE=$UTILITIES_DATA/commands-${OUTPUT_DIR_NAME}.scala
     echo "val hudiDf = spark.read.format(\"org.apache.hudi\").load(\"${OUTPUT_DIR}\")" > $COMMANDS_FILE
     cat $UTILITIES_DATA/commands.scala >> $COMMANDS_FILE
+    echo "::debug::commands file name is ${COMMANDS_FILE}"
+    FILE_CONTENTS=$(cat $COMMANDS_FILE)
+    echo "::debug::commands file contents is $FILE_CONTENTS"
 }
 
 run_deltastreamer () {
@@ -107,9 +110,6 @@ test_utilities_bundle () {
 test_utilities_bundle_upgrade () {
     mkdir $UTILITIES_DATA/tmpdata
     mv $UTILITIES_DATA/data/batch_2.json $UTILITIES_DATA/tmpdata/
-    MAIN_JAR="UTILITIES_BUNDLE-${UPGRADE_VERSION}"
-    OPT_JARS=""
-    OUTPUT_DIR_NAME="upgrade-test-${UPGRADE_VERSION}"
     make_commands_file
     run_deltastreamer
     if [ "$?" -ne 0 ]; then
@@ -156,10 +156,9 @@ SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 
 
 echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
-UPGRADE_VERSION="0_12_0"
-echo "::debug::commands file name is ${COMMANDS_FILE}"
-FILE_CONTENTS=$(cat $COMMANDS_FILE)
-echo "::debug::commands file contents is $FILE_CONTENTS"
+MAIN_JAR=$UTILITIES_BUNDLE-0_12_0
+OPT_JARS=""
+OUTPUT_DIR_NAME="upgrade-test-0_12_0"
 test_utilities_bundle_upgrade
 if [ "$?" -ne 0 ]; then
     exit 1
