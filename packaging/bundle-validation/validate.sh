@@ -55,9 +55,7 @@ make_commands_file () {
     COMMANDS_FILE=$UTILITIES_DATA/commands-${OUTPUT_DIR_NAME}.scala
     echo "val hudiDf = spark.read.format(\"org.apache.hudi\").load(\"${OUTPUT_DIR}\")" > $COMMANDS_FILE
     cat $UTILITIES_DATA/commands.scala >> $COMMANDS_FILE
-    echo "::debug::commands file name is ${COMMANDS_FILE}"
-    FILE_CONTENTS=$(cat $COMMANDS_FILE)
-    echo "::debug::commands file contents is: $FILE_CONTENTS"
+    echo "::debug::output dir is $OUTPUT_DIR"
 }
 
 run_deltastreamer () {
