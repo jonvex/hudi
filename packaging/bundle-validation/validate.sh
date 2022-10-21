@@ -168,17 +168,17 @@ test_utilities_bundle_downgrade () {
 
 SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 
-# echo "::warning::validate.sh testing utilities bundle"
-# MAIN_JAR=$JAR_DATA/utilities.jar
-# ADDITIONAL_JARS=""
-# OUTPUT_DIR_NAME=hudi-utilities-test
-# EXPECTED_SIZE=550
-# make_commands_file
-# test_utilities_bundle
-# if [ "$?" -ne 0 ]; then
-#     exit 1
-# fi
-# echo "::warning::validate.sh done testing utilities bundle"
+echo "::warning::validate.sh testing utilities bundle"
+MAIN_JAR=$JAR_DATA/utilities.jar
+ADDITIONAL_JARS=""
+OUTPUT_DIR_NAME=hudi-utilities-test
+EXPECTED_SIZE=550
+make_commands_file
+test_utilities_bundle
+if [ "$?" -ne 0 ]; then
+    exit 1
+fi
+echo "::warning::validate.sh done testing utilities bundle"
 
 # echo "::warning::validate.sh testing utilities slim bundle"
 # MAIN_JAR=$JAR_DATA/utilities-slim.jar
@@ -193,36 +193,36 @@ SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 # echo "::warning::validate.sh done testing utilities slim bundle"
 
 
-echo "::warning::validate.sh testing utilities bundle upgrade from 0.11.1"
-MAIN_JAR="${UTILITIES_BUNDLE_0_11_1}"
-ADDITIONAL_JARS=""
-OUTPUT_DIR_NAME="upgrade-test_0_11_1"
-test_utilities_bundle_upgrade
-if [ "$?" -ne 0 ]; then
-    exit 1
-fi
-echo "::warning::validate.sh done testing utilities bundle upgrade from 0.11.1"
+# echo "::warning::validate.sh testing utilities bundle upgrade from 0.11.1"
+# MAIN_JAR="${UTILITIES_BUNDLE_0_11_1}"
+# ADDITIONAL_JARS=""
+# OUTPUT_DIR_NAME="upgrade-test_0_11_1"
+# test_utilities_bundle_upgrade
+# if [ "$?" -ne 0 ]; then
+#     exit 1
+# fi
+# echo "::warning::validate.sh done testing utilities bundle upgrade from 0.11.1"
 
 
-echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
-MAIN_JAR="${UTILITIES_BUNDLE_0_12_0}"
-ADDITIONAL_JARS=""
-OUTPUT_DIR_NAME="upgrade-test_0_12_0"
-test_utilities_bundle_upgrade
-if [ "$?" -ne 0 ]; then
-    exit 1
-fi
-echo "::warning::validate.sh done testing utilities bundle upgrade from 0.12.0"
+# echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
+# MAIN_JAR="${UTILITIES_BUNDLE_0_12_0}"
+# ADDITIONAL_JARS=""
+# OUTPUT_DIR_NAME="upgrade-test_0_12_0"
+# test_utilities_bundle_upgrade
+# if [ "$?" -ne 0 ]; then
+#     exit 1
+# fi
+# echo "::warning::validate.sh done testing utilities bundle upgrade from 0.12.0"
 
-echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.1"
-MAIN_JAR="${UTILITIES_BUNDLE_0_12_1}"
-ADDITIONAL_JARS=""
-OUTPUT_DIR_NAME="upgrade-test_0_12_1"
-test_utilities_bundle_upgrade
-if [ "$?" -ne 0 ]; then
-    exit 1
-fi
-echo "::warning::validate.sh done testing utilities bundle upgrade from 0.12.1"
+# echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.1"
+# MAIN_JAR="${UTILITIES_BUNDLE_0_12_1}"
+# ADDITIONAL_JARS=""
+# OUTPUT_DIR_NAME="upgrade-test_0_12_1"
+# test_utilities_bundle_upgrade
+# if [ "$?" -ne 0 ]; then
+#     exit 1
+# fi
+# echo "::warning::validate.sh done testing utilities bundle upgrade from 0.12.1"
 
 
 # echo "::warning::validate.sh testing utilities bundle downgrade to 0.11.1"
