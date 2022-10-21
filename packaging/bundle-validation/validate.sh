@@ -55,6 +55,7 @@ make_commands_file () {
     COMMANDS_FILE=$UTILITIES_DATA/commands-${OUTPUT_DIR_NAME}.scala
     echo "val hudiDf = spark.read.format(\"org.apache.hudi\").load(\"${OUTPUT_DIR}\")" > $COMMANDS_FILE
     cat $UTILITIES_DATA/commands.scala >> $COMMANDS_FILE
+    rm -rf $OUTPUT_DIR
     echo "::debug::output dir is $OUTPUT_DIR"
 }
 
@@ -132,6 +133,7 @@ test_utilities_bundle_upgrade () {
     if [ "$?" -ne 0 ]; then
         exit 1
     fi
+    
 }
 
 
