@@ -96,7 +96,10 @@ test_utilities_bundle () {
         exit 1
     fi
     echo "::debug::output size is $OUTPUT_SIZE, expected $EXPECTED_SIZE"
-
+    IDK_ASFDASF=$(ls -lh ${OUTPUT_DIR})
+    echo "::debug::vexler ls -lh is $IDK_ASFDASF"
+    IDK_ADFSAREWF=$(du -sh ${OUTPUT_DIR})
+    echo "::debug::vexler du -sh is $IDK_ADFSAREWF"
     echo "::warning::validate.sh validating deltastreamer in spark shell"
     SHELL_COMMAND="$SPARK_HOME/bin/spark-shell --jars $ADDITIONAL_JARS $MAIN_JAR $SHELL_ARGS -i $COMMANDS_FILE"
     echo "::debug::this is the shell command: $SHELL_COMMAND"
