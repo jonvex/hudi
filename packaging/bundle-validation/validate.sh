@@ -57,11 +57,14 @@ make_commands_file () {
     cat $UTILITIES_DATA/commands.scala >> $COMMANDS_FILE
     echo "::debug::commands file name is ${COMMANDS_FILE}"
     FILE_CONTENTS=$(cat $COMMANDS_FILE)
-    echo "::debug::commands file contents is $FILE_CONTENTS"
+    echo "::debug::commands file contents is: $FILE_CONTENTS"
 }
 
 run_deltastreamer () {
     echo "::warning::validate.sh running deltastreamer"
+    echo "::debug::main jar is ${MAIN_JAR}"
+    echo "::debug::opt jars is ${OPT_JARS}"
+    echo "::debug::output dir is ${OUTPUT_DIR}"
     $SPARK_HOME/bin/spark-submit --driver-memory 8g --executor-memory 8g \
     --class org.apache.hudi.utilities.deltastreamer.HoodieDeltaStreamer \
     $OPT_JARS $MAIN_JAR \
@@ -156,7 +159,7 @@ SHELL_ARGS=$(cat $UTILITIES_DATA/shell_args)
 
 
 echo "::warning::validate.sh testing utilities bundle upgrade from 0.12.0"
-MAIN_JAR=$UTILITIES_BUNDLE-0_12_0
+MAIN_JAR=${UTILITIES_BUNDLE-0_12_0}
 OPT_JARS=""
 OUTPUT_DIR_NAME="upgrade-test-0_12_0"
 test_utilities_bundle_upgrade
