@@ -81,6 +81,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.apache.hudi.utilities.UtilHelpers.EXECUTE;
 import static org.apache.hudi.utilities.UtilHelpers.SCHEDULE;
@@ -434,11 +435,25 @@ public class SparkMain {
     return new HoodieClusteringJob(jsc, cfg).cluster(retry);
   }
 
-  private static int deduplicatePartitionPath(JavaSparkContext jsc, String duplicatedPartitionPath,
-                                              String repairedOutputPath, String basePath, boolean dryRun, String dedupeType) {
+  private static void deduplicatePartitionPathHelper(JavaSparkContext jsc, String duplicatedPartitionPath,
+                                                    String repairedOutputPath, String basePath, boolean dryRun, String dedupeType) {
     DedupeSparkJob job = new DedupeSparkJob(basePath, duplicatedPartitionPath, repairedOutputPath, new SQLContext(jsc),
         FSUtils.getFs(basePath, jsc.hadoopConfiguration()), DeDupeType.withName(dedupeType));
     job.fixDuplicates(dryRun);
+  }
+
+  private static int deduplicatePartitionPath(JavaSparkContext jsc, String duplicatedPartitionPath,
+                                              String repairedOutputPath, String basePath, boolean dryRun, String dedupeType) {
+    if (!duplicatedPartitionPath.contains(",")) {
+      deduplicatePartitionPathHelper(jsc,duplicatedPartitionPath,repairedOutputPath,basePath,dryRun,dedupeType);
+    } else {
+      List<String> partitions =  Arrays.stream(duplicatedPartitionPath.split(","))
+          .distinct().filter(l -> !l.isEmpty()).collect(Collectors.toList());
+      jsc.parallelize(partitions).foreach(partition -> {
+        String outputPath = repairedOutputPath + "/" + partition;
+        deduplicatePartitionPathHelper(jsc, partition, outputPath, basePath, dryRun, dedupeType);
+      });
+    }
     return 0;
   }
 
