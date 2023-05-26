@@ -107,6 +107,7 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
       .load(basePath)
     //snapshotDf1.cache()
     compareEntireInputDfWithHudiDf(inputDf0, snapshotDf1, colsToSelect)
+
     val records1 = recordsToStrings(dataGen.generateUniqueUpdates("001", 50)).toList
     val updateDf = spark.read.json(spark.sparkContext.parallelize(records1, 2))
     updateDf.write.format("org.apache.hudi")
