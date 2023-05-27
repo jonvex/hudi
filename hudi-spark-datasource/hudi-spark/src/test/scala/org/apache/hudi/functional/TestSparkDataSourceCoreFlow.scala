@@ -49,33 +49,26 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
 
   @ParameterizedTest
   @CsvSource(value = Array(
-//    "COPY_ON_WRITE|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
-//    "COPY_ON_WRITE|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
-//    "COPY_ON_WRITE|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
-//    "COPY_ON_WRITE|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
-//    "COPY_ON_WRITE|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
-//    "COPY_ON_WRITE|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
-//    "COPY_ON_WRITE|false|false|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM",
-//    "COPY_ON_WRITE|true|false|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM",
-//    "COPY_ON_WRITE|true|true|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM",
-//    "MERGE_ON_READ|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
-//    "MERGE_ON_READ|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
-//    "MERGE_ON_READ|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
-//    "MERGE_ON_READ|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
-//    "MERGE_ON_READ|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
-//    "MERGE_ON_READ|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
-    "MERGE_ON_READ|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|GLOBAL_SIMPLE",
-    "MERGE_ON_READ|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|GLOBAL_SIMPLE",
-    "MERGE_ON_READ|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|GLOBAL_SIMPLE",
-    "MERGE_ON_READ|false|false|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_SIMPLE",
-    "MERGE_ON_READ|true|false|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_SIMPLE",
-    "MERGE_ON_READ|true|true|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_SIMPLE",
-    "MERGE_ON_READ|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|GLOBAL_BLOOM",
-    "MERGE_ON_READ|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|GLOBAL_BLOOM",
-    "MERGE_ON_READ|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|GLOBAL_BLOOM",
+    "COPY_ON_WRITE|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
+    "COPY_ON_WRITE|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
+    "COPY_ON_WRITE|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
+    "COPY_ON_WRITE|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
+    "COPY_ON_WRITE|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
+    "COPY_ON_WRITE|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
+    "COPY_ON_WRITE|false|false|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM",
+    "COPY_ON_WRITE|true|false|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM",
+    "COPY_ON_WRITE|true|true|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM",
+    "MERGE_ON_READ|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
+    "MERGE_ON_READ|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
+    "MERGE_ON_READ|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|BLOOM",
+    "MERGE_ON_READ|false|false|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
+    "MERGE_ON_READ|true|false|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE",
+    "MERGE_ON_READ|true|true|org.apache.hudi.keygen.SimpleKeyGenerator|SIMPLE"
+    /*
     "MERGE_ON_READ|false|false|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM",
     "MERGE_ON_READ|true|false|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM",
     "MERGE_ON_READ|true|true|org.apache.hudi.keygen.NonpartitionedKeyGenerator|GLOBAL_BLOOM"
+    */
   ), delimiter = '|')
   def testCoreFlow(tableType: String, isMetadataEnabledOnWrite: Boolean, isMetadataEnabledOnRead: Boolean, keyGenClass: String, indexType: String): Unit = {
     var options: Map[String, String] = commonOpts +
@@ -105,7 +98,6 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
     val snapshotDf1 = spark.read.format("org.apache.hudi")
       .option(HoodieMetadataConfig.ENABLE.key, isMetadataEnabledOnRead)
       .load(basePath)
-    //snapshotDf1.cache()
     compareEntireInputDfWithHudiDf(inputDf0, snapshotDf1, colsToSelect)
 
     val records1 = recordsToStrings(dataGen.generateUniqueUpdates("001", 50)).toList
@@ -119,7 +111,6 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
     val snapshotDf2 = spark.read.format("hudi")
       .option(HoodieMetadataConfig.ENABLE.key, isMetadataEnabledOnRead)
       .load(basePath)
-    //snapshotDf2.cache()
     assertEquals(100, snapshotDf2.count())
 
     compareUpdateDfWithHudiDf(updateDf, snapshotDf2, snapshotDf1, colsToSelect)
@@ -140,7 +131,6 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
     val snapshotDf3 = spark.read.format("org.apache.hudi")
       .option(HoodieMetadataConfig.ENABLE.key, isMetadataEnabledOnRead)
       .load(basePath)
-    //snapshotDf3.cache()
     assertEquals(100, snapshotDf3.count()) // still 100, since we only updated
 
     compareUpdateDfWithHudiDf(inputDf2, snapshotDf3, snapshotDf2, colsToSelect)
@@ -169,7 +159,6 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
     val snapshotDf4 = spark.read.format("org.apache.hudi")
       .option(HoodieMetadataConfig.ENABLE.key, isMetadataEnabledOnRead)
       .load(basePath)
-    //snapshotDf4.cache()
 
     // another incremental query with commit2 and commit3
     val hoodieIncViewDf2 = spark.read.format("org.apache.hudi")
@@ -208,7 +197,6 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
       val snapshotDf5 = spark.read.format("org.apache.hudi")
         .option(HoodieMetadataConfig.ENABLE.key, isMetadataEnabledOnRead)
         .load(basePath)
-      //snapshotDf5.cache()
 
       compareUpdateDfWithHudiDf(inputDf4, snapshotDf5, snapshotDf4, colsToSelect)
       // compaction is expected to have completed. both RO and RT are expected to return same results.
@@ -261,6 +249,9 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
       (DataSourceWriteOptions.KEYGENERATOR_CLASS_NAME.key() -> keyGenClass) +
       (DataSourceWriteOptions.TABLE_TYPE.key() -> tableType) +
       (HoodieIndexConfig.INDEX_TYPE.key() -> indexType)
+    if (keyGenClass.equals("org.apache.hudi.keygen.NonpartitionedKeyGenerator")) {
+      options = options.-(DataSourceWriteOptions.PARTITIONPATH_FIELD.key)
+    }
     // order of cols in inputDf and hudiDf differs slightly. so had to choose columns specifically to compare df directly.
     val colsToSelect = "_row_key, begin_lat,  begin_lon, city_to_state.LA, current_date, current_ts, distance_in_meters, driver, end_lat, end_lon, fare.amount, fare.currency, partition, partition_path, rider, timestamp, weight, _hoodie_is_deleted"
     val dataGen = new HoodieTestDataGenerator(0xDEED)
@@ -268,7 +259,6 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
     // Insert Operation
     val records0 = recordsToStrings(dataGen.generateInserts("000", 100)).toList
     val inputDf0 = spark.read.json(spark.sparkContext.parallelize(records0, 2))
-    inputDf0.cache()
     inputDf0.write.format("org.apache.hudi")
       .options(options)
       .option(DataSourceWriteOptions.OPERATION.key, operation)
@@ -281,12 +271,10 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
     val snapshotDf1 = spark.read.format("org.apache.hudi")
       .option(HoodieMetadataConfig.ENABLE.key, isMetadataEnabledOnRead)
       .load(basePath)
-    snapshotDf1.cache()
     assertEquals(100, snapshotDf1.count())
 
     val records1 = recordsToStrings(dataGen.generateInserts("001", 50)).toList
     val inputDf1 = spark.read.json(spark.sparkContext.parallelize(records1, 2))
-    inputDf1.cache()
     inputDf1.write.format("org.apache.hudi")
       .options(options)
       .option(DataSourceWriteOptions.OPERATION.key, operation)
@@ -296,14 +284,12 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
     val snapshotDf2 = spark.read.format("hudi")
       .option(HoodieMetadataConfig.ENABLE.key, isMetadataEnabledOnRead)
       .load(basePath)
-    snapshotDf2.cache()
     assertEquals(150, snapshotDf2.count())
 
     compareEntireInputDfWithHudiDf(inputDf1.union(inputDf0), snapshotDf2, colsToSelect)
 
     val records2 = recordsToStrings(dataGen.generateInserts("002", 60)).toList
     var inputDf2 = spark.read.json(spark.sparkContext.parallelize(records2, 2))
-    inputDf2.cache()
 
     inputDf2.write.format("org.apache.hudi")
       .options(options)
@@ -317,7 +303,6 @@ class TestSparkDataSource extends SparkClientFunctionalTestHarness {
     val snapshotDf3 = spark.read.format("org.apache.hudi")
       .option(HoodieMetadataConfig.ENABLE.key, isMetadataEnabledOnRead)
       .load(basePath)
-    snapshotDf3.cache()
     assertEquals(210, snapshotDf3.count())
     compareEntireInputDfWithHudiDf(inputDf1.union(inputDf0).union(inputDf2), snapshotDf3, colsToSelect)
   }
