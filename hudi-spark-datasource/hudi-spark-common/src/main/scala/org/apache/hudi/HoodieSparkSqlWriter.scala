@@ -175,6 +175,9 @@ object HoodieSparkSqlWriter {
       operation = WriteOperationType.INSERT
     }
 
+    if (!operation.equals(WriteOperationType.COMPACT)) {
+      throw new HoodieException("Operation: " + operation)
+    }
     val jsc = new JavaSparkContext(sparkContext)
     if (asyncCompactionTriggerFn.isDefined) {
       if (jsc.getConf.getOption(SparkConfigs.SPARK_SCHEDULER_ALLOCATION_FILE_KEY).isDefined) {
