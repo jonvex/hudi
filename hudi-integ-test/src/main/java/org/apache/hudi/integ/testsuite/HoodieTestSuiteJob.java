@@ -120,6 +120,7 @@ public class HoodieTestSuiteJob {
       metaClient = HoodieTableMetaClient.withPropertyBuilder()
           .setTableType(cfg.tableType)
           .setTableName(cfg.targetTableName)
+          .setRecordKeyFields(this.props.getString("hoodie.datasource.write.recordkey.field"))
           .setArchiveLogFolder(ARCHIVELOG_FOLDER.defaultValue())
           .initTable(jsc.hadoopConfiguration(), cfg.targetBasePath);
     } else {
