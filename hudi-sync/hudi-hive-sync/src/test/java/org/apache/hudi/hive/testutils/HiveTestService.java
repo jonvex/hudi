@@ -64,7 +64,7 @@ public class HiveTestService {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTestService.class);
   private static final int CONNECTION_TIMEOUT_MS = 30000;
   private static final String BIND_HOST = "127.0.0.1";
-  private static final int HS2_THRIFT_PORT = 9999;
+  private static final int HS2_THRIFT_PORT = 10000;
   public static final String HS2_JDBC_URL = String.format("jdbc:hive2://%s:%s/", BIND_HOST, HS2_THRIFT_PORT);
 
   private final Configuration hadoopConf;

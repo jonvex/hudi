@@ -23,6 +23,7 @@ import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.index.HoodieIndex;
+import org.apache.hudi.integ.testsuite.HoodieMultiWriterTestSuiteJob;
 import org.apache.hudi.integ.testsuite.HoodieTestSuiteJob;
 import org.apache.hudi.integ.testsuite.HoodieTestSuiteJob.HoodieTestSuiteConfig;
 import org.apache.hudi.integ.testsuite.dag.ComplexDagGenerator;
@@ -92,7 +93,8 @@ public class TestHoodieTestSuiteJob extends UtilitiesTestBase {
 
   @BeforeAll
   public static void initClass() throws Exception {
-    UtilitiesTestBase.initTestServices(true, true, true);
+    UtilitiesTestBase.initTestServices(true, true, false);
+    /*
     // prepare the configs.
     UtilitiesTestBase.Helpers.copyToDFSFromAbsolutePath(System.getProperty("user.dir") + "/.."
         + BASE_PROPERTIES_DOCKER_DEMO_RELATIVE_PATH, fs, basePath + "/base.properties");
@@ -130,6 +132,7 @@ public class TestHoodieTestSuiteJob extends UtilitiesTestBase {
     UtilitiesTestBase.Helpers.savePropsToDFS(downstreamProps, fs,
         basePath + "/test-downstream-source.properties");
     // these tests cause a lot of log verbosity from spark, turning it down
+     */
     org.apache.log4j.Logger.getLogger("org.apache.spark").setLevel(org.apache.log4j.Level.WARN);
   }
 
@@ -294,6 +297,29 @@ public class TestHoodieTestSuiteJob extends UtilitiesTestBase {
     cfg.workloadYamlPath = basePath + "/" + SPARK_SQL_DAG_FILE_NAME;
     HoodieTestSuiteJob hoodieTestSuiteJob = new HoodieTestSuiteJob(cfg, jsc);
     hoodieTestSuiteJob.runTestSuite();
+  }
+
+
+  @Test
+  public void testMultiwriter() throws Exception {
+    HoodieMultiWriterTestSuiteJob.HoodieMultiWriterTestSuiteConfig cfg = new HoodieMultiWriterTestSuiteJob.HoodieMultiWriterTestSuiteConfig();
+    cfg.sourceOrderingField = "test_suite_source_ordering_field";
+    cfg.useDeltaStreamer = true;
+    cfg.targetBasePath = "file:/tmp/hudi/output";
+    cfg.inputBasePaths =  "/tmp/hudi/input1,/tmp/hudi/input2,/tmp/hudi/input3,/tmp/hudi/input4";
+    cfg.targetTableName = "table1";
+    cfg.propsFilePaths = "file:/tmp/multi-writer-local-1.properties,file:/tmp/multi-writer-local-2.properties,file:/tmp/multi-writer-local-3.properties,file:/tmp/multi-writer-local-4.properties";
+    cfg.schemaProviderClassName = "org.apache.hudi.integ.testsuite.schema.TestSuiteFileBasedSchemaProvider";
+    cfg.sourceClassName = "org.apache.hudi.utilities.sources.AvroDFSSource";
+    cfg.workloadYamlPaths = "file:/tmp/multi-writer-1-sds.yaml,file:/tmp/multi-writer-2-sds.yaml,file:/tmp/multi-writer-3-sds.yaml,file:/tmp/multi-writer-4-sds.yaml";
+    cfg.workloadDagGenerator = "org.apache.hudi.integ.testsuite.dag.WorkflowDagGenerator";
+    cfg.tableType = "COPY_ON_WRITE";
+    cfg.compactSchedulingMinShare = 1;
+    cfg.inputBasePath = "dummyValue";
+    cfg.workloadYamlPath = "dummyValue";
+    cfg.propsFilePath = "dummyValue";
+    cfg.useHudiToGenerateUpdates = true;
+    HoodieMultiWriterTestSuiteJob.runIt(cfg, jsc);
   }
 
   protected HoodieTestSuiteConfig makeConfig(String inputBasePath, String outputBasePath, boolean useDeltaStream,

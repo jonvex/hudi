@@ -96,6 +96,85 @@ public class HoodieMultiWriterTestSuiteJob {
 
   private static final Logger LOG = LoggerFactory.getLogger(HoodieMultiWriterTestSuiteJob.class);
 
+  public static void runIt(HoodieMultiWriterTestSuiteConfig cfg, JavaSparkContext jsc) throws Exception {
+    JavaSparkContext jssc = jsc;
+
+    String[] inputPaths = cfg.inputBasePaths.split(",");
+    String[] yamls = cfg.workloadYamlPaths.split(",");
+    String[] propsFiles = cfg.propsFilePaths.split(",");
+
+    if (inputPaths.length != yamls.length || yamls.length != propsFiles.length) {
+      throw new HoodieException("Input paths, property file and yaml file counts does not match ");
+    }
+
+    ExecutorService executor = Executors.newFixedThreadPool(inputPaths.length);
+    Random random = new Random();
+
+    List<HoodieTestSuiteJob.HoodieTestSuiteConfig> testSuiteConfigList = new ArrayList<>();
+    int jobIndex = 0;
+    for (String inputPath : inputPaths) {
+      HoodieMultiWriterTestSuiteConfig testSuiteConfig = new HoodieMultiWriterTestSuiteConfig();
+      deepCopyConfigs(cfg, testSuiteConfig);
+      testSuiteConfig.inputBasePath = inputPath;
+      testSuiteConfig.workloadYamlPath = yamls[jobIndex];
+      testSuiteConfig.propsFilePath = propsFiles[jobIndex];
+      testSuiteConfigList.add(testSuiteConfig);
+      jobIndex++;
+    }
+
+    AtomicBoolean jobFailed = new AtomicBoolean(false);
+    AtomicInteger counter = new AtomicInteger(0);
+    List<Long> waitTimes = new ArrayList<>();
+    for (int i = 0; i < jobIndex; i++) {
+      if (i == 0) {
+        waitTimes.add(0L);
+      } else {
+        // every job after 1st, will start after 1 min + some delta.
+        waitTimes.add(30000L + random.nextInt(10000));
+      }
+    }
+    List<CompletableFuture<Boolean>> completableFutureList = new ArrayList<>();
+    testSuiteConfigList.forEach(hoodieTestSuiteConfig -> {
+      try {
+        // start each job at 20 seconds interval so that metaClient instantiation does not overstep
+        Thread.sleep(waitTimes.get(counter.get()));
+        LOG.info("Starting job " + hoodieTestSuiteConfig.toString());
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+      completableFutureList.add(CompletableFuture.supplyAsync(() -> {
+        boolean toReturn = true;
+        try {
+          new HoodieTestSuiteJob(hoodieTestSuiteConfig, jssc, false).runTestSuite();
+          LOG.info("Job completed successfully");
+        } catch (Exception e) {
+          if (!jobFailed.getAndSet(true)) {
+            LOG.error("Exception thrown " + e.getMessage() + ", cause : " + e.getCause());
+            throw new RuntimeException("HoodieTestSuiteJob Failed " + e.getCause() + ", and msg " + e.getMessage(), e);
+          } else {
+            LOG.info("Already a job failed. so, not throwing any exception ");
+          }
+        }
+        return toReturn;
+      }, executor));
+      counter.getAndIncrement();
+    });
+
+    LOG.info("Going to await until all jobs complete");
+    try {
+      CompletableFuture completableFuture = allOfTerminateOnFailure(completableFutureList);
+      completableFuture.get();
+    } finally {
+      executor.shutdownNow();
+      if (jssc != null) {
+        LOG.info("Completed and shutting down spark context ");
+        LOG.info("Shutting down spark session and JavaSparkContext");
+        SparkSession.builder().config(jssc.getConf()).getOrCreate().stop();
+        jssc.close();
+      }
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     final HoodieMultiWriterTestSuiteConfig cfg = new HoodieMultiWriterTestSuiteConfig();
     JCommander cmd = new JCommander(cfg, args);
@@ -177,7 +256,7 @@ public class HoodieMultiWriterTestSuiteJob {
       if (jssc != null) {
         LOG.info("Completed and shutting down spark context ");
         LOG.info("Shutting down spark session and JavaSparkContext");
-        SparkSession.builder().config(jssc.getConf()).enableHiveSupport().getOrCreate().stop();
+        SparkSession.builder().config(jssc.getConf()).getOrCreate().stop();
         jssc.close();
       }
     }
