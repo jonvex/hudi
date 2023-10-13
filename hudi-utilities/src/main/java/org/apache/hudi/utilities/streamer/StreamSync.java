@@ -517,7 +517,10 @@ public class StreamSync implements Serializable, Closeable {
       throw new UnsupportedOperationException("Spark record only support parquet log.");
     }
 
-    final Option<JavaRDD<GenericRecord>> avroRDDOptional;
+    Option<JavaRDD<GenericRecord>> avroRDDOptional = Option.empty();
+    Option<Dataset<Row>> rowDatasetOptional = Option.empty();
+    boolean noNewData = false;
+    boolean isRowOptimized = cfg.operation.equals(WriteOperationType.BULK_INSERT);
     final String checkpointStr;
     SchemaProvider schemaProvider;
     if (transformer.isPresent()) {
@@ -535,28 +538,6 @@ public class StreamSync implements Serializable, Closeable {
       checkpointStr = dataAndCheckpoint.getCheckpointForNextBatch();
       boolean reconcileSchema = props.getBoolean(DataSourceWriteOptions.RECONCILE_SCHEMA().key());
       if (this.userProvidedSchemaProvider != null && this.userProvidedSchemaProvider.getTargetSchema() != null) {
-        // If the target schema is specified through Avro schema,
-        // pass in the schema for the Row-to-Avro conversion
-        // to avoid nullability mismatch between Avro schema and Row schema
-        if (errorTableWriter.isPresent()
-            && props.getBoolean(HoodieErrorTableConfig.ERROR_ENABLE_VALIDATE_TARGET_SCHEMA.key(),
-            HoodieErrorTableConfig.ERROR_ENABLE_VALIDATE_TARGET_SCHEMA.defaultValue())) {
-          // If the above conditions are met, trigger error events for the rows whose conversion to
-          // avro records fails.
-          avroRDDOptional = transformed.map(
-              rowDataset -> {
-                Tuple2<RDD<GenericRecord>, RDD<String>> safeCreateRDDs = HoodieSparkUtils.safeCreateRDD(rowDataset,
-                    HOODIE_RECORD_STRUCT_NAME, HOODIE_RECORD_NAMESPACE, reconcileSchema,
-                    Option.of(this.userProvidedSchemaProvider.getTargetSchema()));
-                errorTableWriter.get().addErrorEvents(safeCreateRDDs._2().toJavaRDD()
-                    .map(evStr -> new ErrorEvent<>(evStr,
-                        ErrorEvent.ErrorReason.AVRO_DESERIALIZATION_FAILURE)));
-                return safeCreateRDDs._1.toJavaRDD();
-              });
-        } else {
-          avroRDDOptional = transformed.map(
-              rowDataset -> getTransformedRDD(rowDataset, reconcileSchema, this.userProvidedSchemaProvider.getTargetSchema()));
-        }
         schemaProvider = this.userProvidedSchemaProvider;
       } else {
         Option<Schema> latestTableSchemaOpt = UtilHelpers.getLatestTableSchema(hoodieSparkContext.jsc(), fs, cfg.targetBasePath);
@@ -578,16 +559,56 @@ public class StreamSync implements Serializable, Closeable {
                 (SchemaProvider) new DelegatingSchemaProvider(props, hoodieSparkContext.jsc(), dataAndCheckpoint.getSchemaProvider(),
                     new SimpleSchemaProvider(hoodieSparkContext.jsc(), targetSchema, props)))
             .orElse(dataAndCheckpoint.getSchemaProvider());
-        // Rewrite transformed records into the expected target schema
-        avroRDDOptional = transformed.map(t -> getTransformedRDD(t, reconcileSchema, schemaProvider.getTargetSchema()));
+      }
+
+      // Short circuit for bulk insert to gain performance benefits of row writing
+      if (isRowOptimized) {
+        rowDatasetOptional = transformed;
+        noNewData = (!rowDatasetOptional.isPresent()) || (rowDatasetOptional.get().isEmpty());
+      } else {
+        // If the target schema is specified through Avro schema,
+        // pass in the schema for the Row-to-Avro conversion
+        // to avoid nullability mismatch between Avro schema and Row schema
+        if (errorTableWriter.isPresent()
+            && props.getBoolean(HoodieErrorTableConfig.ERROR_ENABLE_VALIDATE_TARGET_SCHEMA.key(),
+            HoodieErrorTableConfig.ERROR_ENABLE_VALIDATE_TARGET_SCHEMA.defaultValue())) {
+          // If the above conditions are met, trigger error events for the rows whose conversion to
+          // avro records fails.
+          avroRDDOptional = transformed.map(
+              rowDataset -> {
+                Tuple2<RDD<GenericRecord>, RDD<String>> safeCreateRDDs = HoodieSparkUtils.safeCreateRDD(rowDataset,
+                    HOODIE_RECORD_STRUCT_NAME, HOODIE_RECORD_NAMESPACE, reconcileSchema,
+                    Option.of(schemaProvider.getTargetSchema()));
+                errorTableWriter.get().addErrorEvents(safeCreateRDDs._2().toJavaRDD()
+                    .map(evStr -> new ErrorEvent<>(evStr,
+                        ErrorEvent.ErrorReason.AVRO_DESERIALIZATION_FAILURE)));
+                return safeCreateRDDs._1.toJavaRDD();
+              });
+        } else {
+          // Rewrite transformed records into the expected target schema
+          avroRDDOptional = transformed.map(
+              rowDataset -> getTransformedRDD(rowDataset, reconcileSchema, schemaProvider.getTargetSchema()));
+        }
+        noNewData = (!avroRDDOptional.isPresent()) || (avroRDDOptional.get().isEmpty());
       }
     } else {
-      // Pull the data from the source & prepare the write
-      InputBatch<JavaRDD<GenericRecord>> dataAndCheckpoint =
-          formatAdapter.fetchNewDataInAvroFormat(resumeCheckpointStr, cfg.sourceLimit);
-      avroRDDOptional = dataAndCheckpoint.getBatch();
-      checkpointStr = dataAndCheckpoint.getCheckpointForNextBatch();
-      schemaProvider = dataAndCheckpoint.getSchemaProvider();
+      if (isRowOptimized) {
+        // Pull the data from the source in row format for bulk inserts & prepare the write
+        InputBatch<Dataset<Row>> dataAndCheckpoint =
+            formatAdapter.fetchNewDataInRowFormat(resumeCheckpointStr, cfg.sourceLimit);
+        rowDatasetOptional = dataAndCheckpoint.getBatch();
+        checkpointStr = dataAndCheckpoint.getCheckpointForNextBatch();
+        schemaProvider = dataAndCheckpoint.getSchemaProvider();
+        noNewData = (!rowDatasetOptional.isPresent()) || (rowDatasetOptional.get().isEmpty());
+      } else {
+        // Pull the data from the source & prepare the write
+        InputBatch<JavaRDD<GenericRecord>> dataAndCheckpoint =
+            formatAdapter.fetchNewDataInAvroFormat(resumeCheckpointStr, cfg.sourceLimit);
+        avroRDDOptional = dataAndCheckpoint.getBatch();
+        checkpointStr = dataAndCheckpoint.getCheckpointForNextBatch();
+        schemaProvider = dataAndCheckpoint.getSchemaProvider();
+        noNewData = (!avroRDDOptional.isPresent()) || (avroRDDOptional.get().isEmpty());
+      }
     }
 
     if (!cfg.allowCommitOnNoCheckpointChange && Objects.equals(checkpointStr, resumeCheckpointStr.orElse(null))) {
@@ -599,65 +620,80 @@ public class StreamSync implements Serializable, Closeable {
     }
 
     hoodieSparkContext.setJobStatus(this.getClass().getSimpleName(), "Checking if input is empty");
-    if ((!avroRDDOptional.isPresent()) || (avroRDDOptional.get().isEmpty())) {
+    if (noNewData) {
       LOG.info("No new data, perform empty commit.");
       return Pair.of(schemaProvider, Pair.of(checkpointStr, hoodieSparkContext.emptyRDD()));
     }
 
     boolean shouldCombine = cfg.filterDupes || cfg.operation.equals(WriteOperationType.UPSERT);
     Set<String> partitionColumns = getPartitionColumns(props);
-    JavaRDD<GenericRecord> avroRDD = avroRDDOptional.get();
-
-    JavaRDD<HoodieRecord> records;
+    JavaRDD<HoodieRecord> records = null;
     SerializableSchema avroSchema = new SerializableSchema(schemaProvider.getTargetSchema());
     SerializableSchema processedAvroSchema = new SerializableSchema(isDropPartitionColumns() ? HoodieAvroUtils.removeMetadataFields(avroSchema.get()) : avroSchema.get());
-    if (recordType == HoodieRecordType.AVRO) {
-      records = avroRDD.mapPartitions(
-          (FlatMapFunction<Iterator<GenericRecord>, HoodieRecord>) genericRecordIterator -> {
-            if (autoGenerateRecordKeys) {
-              props.setProperty(KeyGenUtils.RECORD_KEY_GEN_PARTITION_ID_CONFIG, String.valueOf(TaskContext.getPartitionId()));
-              props.setProperty(KeyGenUtils.RECORD_KEY_GEN_INSTANT_TIME_CONFIG, instantTime);
-            }
-            BuiltinKeyGenerator builtinKeyGenerator = (BuiltinKeyGenerator) HoodieSparkKeyGeneratorFactory.createKeyGenerator(props);
-            List<HoodieRecord> avroRecords = new ArrayList<>();
-            while (genericRecordIterator.hasNext()) {
-              GenericRecord genRec = genericRecordIterator.next();
-              HoodieKey hoodieKey = new HoodieKey(builtinKeyGenerator.getRecordKey(genRec), builtinKeyGenerator.getPartitionPath(genRec));
-              GenericRecord gr = isDropPartitionColumns() ? HoodieAvroUtils.removeFields(genRec, partitionColumns) : genRec;
-              HoodieRecordPayload payload = shouldCombine ? DataSourceUtils.createPayload(cfg.payloadClassName, gr,
-                  (Comparable) HoodieAvroUtils.getNestedFieldVal(gr, cfg.sourceOrderingField, false, props.getBoolean(
-                      KeyGeneratorOptions.KEYGENERATOR_CONSISTENT_LOGICAL_TIMESTAMP_ENABLED.key(),
-                      Boolean.parseBoolean(KeyGeneratorOptions.KEYGENERATOR_CONSISTENT_LOGICAL_TIMESTAMP_ENABLED.defaultValue()))))
-                  : DataSourceUtils.createPayload(cfg.payloadClassName, gr);
-              avroRecords.add(new HoodieAvroRecord<>(hoodieKey, payload));
-            }
-            return avroRecords.iterator();
-          });
-    } else if (recordType == HoodieRecordType.SPARK) {
-      // TODO we should remove it if we can read InternalRow from source.
-      records = avroRDD.mapPartitions(itr -> {
-        if (autoGenerateRecordKeys) {
-          props.setProperty(KeyGenUtils.RECORD_KEY_GEN_PARTITION_ID_CONFIG, String.valueOf(TaskContext.getPartitionId()));
-          props.setProperty(KeyGenUtils.RECORD_KEY_GEN_INSTANT_TIME_CONFIG, instantTime);
-        }
-        BuiltinKeyGenerator builtinKeyGenerator = (BuiltinKeyGenerator) HoodieSparkKeyGeneratorFactory.createKeyGenerator(props);
+    if (autoGenerateRecordKeys) {
+      props.setProperty(KeyGenUtils.RECORD_KEY_GEN_PARTITION_ID_CONFIG, String.valueOf(TaskContext.getPartitionId()));
+      props.setProperty(KeyGenUtils.RECORD_KEY_GEN_INSTANT_TIME_CONFIG, instantTime);
+    }
+    try {
+      BuiltinKeyGenerator builtinKeyGenerator = (BuiltinKeyGenerator) HoodieSparkKeyGeneratorFactory.createKeyGenerator(props);
+      if (isRowOptimized) {
+        assert (rowDatasetOptional.isPresent());
         StructType baseStructType = AvroConversionUtils.convertAvroSchemaToStructType(processedAvroSchema.get());
         StructType targetStructType = isDropPartitionColumns() ? AvroConversionUtils
             .convertAvroSchemaToStructType(HoodieAvroUtils.removeFields(processedAvroSchema.get(), partitionColumns)) : baseStructType;
-        HoodieAvroDeserializer deserializer = SparkAdapterSupport$.MODULE$.sparkAdapter().createAvroDeserializer(processedAvroSchema.get(), baseStructType);
 
-        return new CloseableMappingIterator<>(ClosableIterator.wrap(itr), rec -> {
-          InternalRow row = (InternalRow) deserializer.deserialize(rec).get();
-          String recordKey = builtinKeyGenerator.getRecordKey(row, baseStructType).toString();
-          String partitionPath = builtinKeyGenerator.getPartitionPath(row, baseStructType).toString();
-          return new HoodieSparkRecord(new HoodieKey(recordKey, partitionPath),
-              HoodieInternalRowUtils.getCachedUnsafeProjection(baseStructType, targetStructType).apply(row), targetStructType, false);
-        });
-      });
-    } else {
-      throw new UnsupportedOperationException(recordType.name());
+        Dataset<Row> df = rowDatasetOptional.get();
+        records = df.queryExecution().toRdd()
+            .toJavaRDD()
+            .map(internalRow -> {
+              String recordKey = builtinKeyGenerator.getRecordKey(internalRow, baseStructType).toString();
+              String partitionPath = builtinKeyGenerator.getPartitionPath(internalRow, baseStructType).toString();
+              return new HoodieSparkRecord(new HoodieKey(recordKey, partitionPath),
+                  HoodieInternalRowUtils.getCachedUnsafeProjection(baseStructType, targetStructType).apply(internalRow), targetStructType, false);
+            });
+      } else {
+        assert (avroRDDOptional.isPresent());
+        JavaRDD<GenericRecord> avroRDD = avroRDDOptional.get();
+        if (recordType == HoodieRecordType.AVRO) {
+          records = avroRDD.mapPartitions(
+              (FlatMapFunction<Iterator<GenericRecord>, HoodieRecord>) genericRecordIterator -> {
+                List<HoodieRecord> avroRecords = new ArrayList<>();
+                while (genericRecordIterator.hasNext()) {
+                  GenericRecord genRec = genericRecordIterator.next();
+                  HoodieKey hoodieKey = new HoodieKey(builtinKeyGenerator.getRecordKey(genRec), builtinKeyGenerator.getPartitionPath(genRec));
+                  GenericRecord gr = isDropPartitionColumns() ? HoodieAvroUtils.removeFields(genRec, partitionColumns) : genRec;
+                  HoodieRecordPayload payload = shouldCombine ? DataSourceUtils.createPayload(cfg.payloadClassName, gr,
+                      (Comparable) HoodieAvroUtils.getNestedFieldVal(gr, cfg.sourceOrderingField, false, props.getBoolean(
+                          KeyGeneratorOptions.KEYGENERATOR_CONSISTENT_LOGICAL_TIMESTAMP_ENABLED.key(),
+                          Boolean.parseBoolean(KeyGeneratorOptions.KEYGENERATOR_CONSISTENT_LOGICAL_TIMESTAMP_ENABLED.defaultValue()))))
+                      : DataSourceUtils.createPayload(cfg.payloadClassName, gr);
+                  avroRecords.add(new HoodieAvroRecord<>(hoodieKey, payload));
+                }
+                return avroRecords.iterator();
+              });
+        } else if (recordType == HoodieRecordType.SPARK) {
+          // TODO we should remove it if we can read InternalRow from source.
+          records = avroRDD.mapPartitions(itr -> {
+            StructType baseStructType = AvroConversionUtils.convertAvroSchemaToStructType(processedAvroSchema.get());
+            StructType targetStructType = isDropPartitionColumns() ? AvroConversionUtils
+                .convertAvroSchemaToStructType(HoodieAvroUtils.removeFields(processedAvroSchema.get(), partitionColumns)) : baseStructType;
+            HoodieAvroDeserializer deserializer = SparkAdapterSupport$.MODULE$.sparkAdapter().createAvroDeserializer(processedAvroSchema.get(), baseStructType);
+
+            return new CloseableMappingIterator<>(ClosableIterator.wrap(itr), rec -> {
+              InternalRow row = (InternalRow) deserializer.deserialize(rec).get();
+              String recordKey = builtinKeyGenerator.getRecordKey(row, baseStructType).toString();
+              String partitionPath = builtinKeyGenerator.getPartitionPath(row, baseStructType).toString();
+              return new HoodieSparkRecord(new HoodieKey(recordKey, partitionPath),
+                  HoodieInternalRowUtils.getCachedUnsafeProjection(baseStructType, targetStructType).apply(row), targetStructType, false);
+            });
+          });
+        } else {
+          throw new UnsupportedOperationException(recordType.name());
+        }
+      }
+    } catch (IOException ioe) {
+      throw new HoodieIOException(ioe.getMessage(), ioe);
     }
-
     return Pair.of(schemaProvider, Pair.of(checkpointStr, records));
   }
 

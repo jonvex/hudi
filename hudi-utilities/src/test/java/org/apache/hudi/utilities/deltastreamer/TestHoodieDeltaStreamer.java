@@ -2529,6 +2529,51 @@ public class TestHoodieDeltaStreamer extends HoodieDeltaStreamerTestBase {
     return baseFileStream.map(HoodieBaseFile::getFileId).collect(Collectors.toSet());
   }
 
+  private void testBulkInsertOptRowWriterParquetDFSSource(boolean useSchemaProvider, List<String> transformerClassNames, boolean testEmptyBatch) throws Exception {
+    PARQUET_SOURCE_ROOT = basePath + "/parquetFilesDfs" + testNum;
+    int parquetRecordsCount = 10;
+    boolean hasTransformer = transformerClassNames != null && !transformerClassNames.isEmpty();
+    prepareParquetDFSFiles(parquetRecordsCount, PARQUET_SOURCE_ROOT, FIRST_PARQUET_FILE_NAME, false, null, null);
+    prepareParquetDFSSource(useSchemaProvider, hasTransformer, "source.avsc", "target.avsc", PROPS_FILENAME_TEST_PARQUET,
+        PARQUET_SOURCE_ROOT, false, "partition_path", testEmptyBatch ? "1" : "");
+
+    String tableBasePath = basePath + "/test_parquet_table" + testNum;
+    HoodieDeltaStreamer deltaStreamer = new HoodieDeltaStreamer(
+        TestHelpers.makeConfig(tableBasePath, WriteOperationType.BULK_INSERT, testEmptyBatch ? TestParquetDFSSourceEmptyBatch.class.getName()
+                : ParquetDFSSource.class.getName(),
+            transformerClassNames, PROPS_FILENAME_TEST_PARQUET, false,
+            useSchemaProvider, 100000, false, null, null, "timestamp", null), jsc);
+    deltaStreamer.sync();
+    assertRecordCount(parquetRecordsCount, tableBasePath, sqlContext);
+
+    if (testEmptyBatch) {
+      prepareParquetDFSFiles(100, PARQUET_SOURCE_ROOT, "2.parquet", false, null, null);
+      deltaStreamer.sync();
+      // since we mimic'ed empty batch, total records should be same as first sync().
+      assertRecordCount(parquetRecordsCount, tableBasePath, sqlContext);
+      HoodieTableMetaClient metaClient = HoodieTableMetaClient.builder().setBasePath(tableBasePath).setConf(jsc.hadoopConfiguration()).build();
+
+      // validate table schema fetches valid schema from last but one commit.
+      TableSchemaResolver tableSchemaResolver = new TableSchemaResolver(metaClient);
+      assertNotEquals(tableSchemaResolver.getTableAvroSchema(), Schema.create(Schema.Type.NULL).toString());
+    }
+
+    // proceed w/ non empty batch.
+    prepareParquetDFSFiles(100, PARQUET_SOURCE_ROOT, "3.parquet", false, null, null);
+    deltaStreamer.sync();
+    assertRecordCount(parquetRecordsCount + 100, tableBasePath, sqlContext);
+    // validate commit metadata for all completed commits to have valid schema in extra metadata.
+    HoodieTableMetaClient metaClient = HoodieTableMetaClient.builder().setBasePath(tableBasePath).setConf(jsc.hadoopConfiguration()).build();
+    metaClient.reloadActiveTimeline().getCommitsTimeline().filterCompletedInstants().getInstants().forEach(entry -> assertValidSchemaInCommitMetadata(entry, metaClient));
+    testNum++;
+  }
+
+  @Test
+  public void testBulkInsertOptBasic() throws Exception {
+    testParquetDFSSource(false, null);
+    testBulkInsertOptRowWriterParquetDFSSource(true, Collections.singletonList(TripsWithDistanceTransformer.class.getName()), false);
+  }
+
   class TestStreamSync extends DeltaSync {
 
     public TestStreamSync(HoodieDeltaStreamer.Config cfg, SparkSession sparkSession, SchemaProvider schemaProvider, TypedProperties props,
