@@ -23,6 +23,7 @@ import org.apache.hudi.AvroConversionUtils;
 import org.apache.hudi.DataSourceUtils;
 import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.HoodieConversionUtils;
+import org.apache.hudi.HoodieSparkRecordMerger;
 import org.apache.hudi.HoodieSparkSqlWriter;
 import org.apache.hudi.HoodieSparkUtils;
 import org.apache.hudi.SparkAdapterSupport$;
@@ -145,6 +146,7 @@ import static org.apache.hudi.avro.AvroSchemaUtils.getAvroRecordQualifiedName;
 import static org.apache.hudi.common.table.HoodieTableConfig.ARCHIVELOG_FOLDER;
 import static org.apache.hudi.common.table.HoodieTableConfig.DROP_PARTITION_COLUMNS;
 import static org.apache.hudi.common.table.HoodieTableConfig.HIVE_STYLE_PARTITIONING_ENABLE;
+import static org.apache.hudi.common.table.HoodieTableConfig.RECORD_MERGER_STRATEGY;
 import static org.apache.hudi.common.table.HoodieTableConfig.URL_ENCODE_PARTITIONING;
 import static org.apache.hudi.common.util.ConfigUtils.getBooleanWithAltKeys;
 import static org.apache.hudi.common.util.ConfigUtils.removeConfigFromProps;
@@ -155,6 +157,7 @@ import static org.apache.hudi.config.HoodieErrorTableConfig.ERROR_TABLE_ENABLED;
 import static org.apache.hudi.config.HoodieWriteConfig.AUTO_COMMIT_ENABLE;
 import static org.apache.hudi.config.HoodieWriteConfig.COMBINE_BEFORE_INSERT;
 import static org.apache.hudi.config.HoodieWriteConfig.COMBINE_BEFORE_UPSERT;
+import static org.apache.hudi.config.HoodieWriteConfig.RECORD_MERGER_IMPLS;
 import static org.apache.hudi.hive.HiveSyncConfigHolder.HIVE_SYNC_BUCKET_SYNC;
 import static org.apache.hudi.hive.HiveSyncConfigHolder.HIVE_SYNC_BUCKET_SYNC_SPEC;
 import static org.apache.hudi.keygen.factory.HoodieSparkKeyGeneratorFactory.getKeyGeneratorClassName;
@@ -303,7 +306,9 @@ public class StreamSync implements Serializable, Closeable {
 
     this.transformer = UtilHelpers.createTransformer(Option.ofNullable(cfg.transformerClassNames),
         Option.ofNullable(schemaProvider).map(SchemaProvider::getSourceSchema), this.errorTableWriter.isPresent());
-
+    if (this.cfg.operation == WriteOperationType.BULK_INSERT) {
+      this.props.setProperty(RECORD_MERGER_IMPLS.key(), HoodieSparkRecordMerger.class.getName());
+    }
   }
 
   /**
@@ -512,6 +517,7 @@ public class StreamSync implements Serializable, Closeable {
   private Pair<SchemaProvider, Pair<String, JavaRDD<HoodieRecord>>> fetchFromSource(Option<String> resumeCheckpointStr, String instantTime) {
     HoodieRecordType recordType = createRecordMerger(props).getRecordType();
     if (recordType == HoodieRecordType.SPARK && HoodieTableType.valueOf(cfg.tableType) == HoodieTableType.MERGE_ON_READ
+        && !cfg.operation.equals(WriteOperationType.BULK_INSERT)
         && HoodieLogBlockType.fromId(props.getProperty(HoodieStorageConfig.LOGFILE_DATA_BLOCK_FORMAT.key(), "avro"))
         != HoodieLogBlockType.PARQUET_DATA_BLOCK) {
       throw new UnsupportedOperationException("Spark record only support parquet log.");
@@ -520,7 +526,6 @@ public class StreamSync implements Serializable, Closeable {
     Option<JavaRDD<GenericRecord>> avroRDDOptional = Option.empty();
     Option<Dataset<Row>> rowDatasetOptional = Option.empty();
     boolean noNewData = false;
-    boolean isRowOptimized = cfg.operation.equals(WriteOperationType.BULK_INSERT);
     final String checkpointStr;
     SchemaProvider schemaProvider;
     if (transformer.isPresent()) {
@@ -561,8 +566,7 @@ public class StreamSync implements Serializable, Closeable {
             .orElse(dataAndCheckpoint.getSchemaProvider());
       }
 
-      // Short circuit for bulk insert to gain performance benefits of row writing
-      if (isRowOptimized) {
+      if (recordType == HoodieRecordType.SPARK) {
         rowDatasetOptional = transformed;
         noNewData = (!rowDatasetOptional.isPresent()) || (rowDatasetOptional.get().isEmpty());
       } else {
@@ -592,7 +596,7 @@ public class StreamSync implements Serializable, Closeable {
         noNewData = (!avroRDDOptional.isPresent()) || (avroRDDOptional.get().isEmpty());
       }
     } else {
-      if (isRowOptimized) {
+      if (recordType == HoodieRecordType.SPARK) {
         // Pull the data from the source in row format for bulk inserts & prepare the write
         InputBatch<Dataset<Row>> dataAndCheckpoint =
             formatAdapter.fetchNewDataInRowFormat(resumeCheckpointStr, cfg.sourceLimit);
@@ -636,7 +640,7 @@ public class StreamSync implements Serializable, Closeable {
     }
     try {
       BuiltinKeyGenerator builtinKeyGenerator = (BuiltinKeyGenerator) HoodieSparkKeyGeneratorFactory.createKeyGenerator(props);
-      if (isRowOptimized) {
+      if (recordType == HoodieRecordType.SPARK) {
         assert (rowDatasetOptional.isPresent());
         StructType baseStructType = AvroConversionUtils.convertAvroSchemaToStructType(processedAvroSchema.get());
         StructType targetStructType = isDropPartitionColumns() ? AvroConversionUtils
@@ -671,22 +675,6 @@ public class StreamSync implements Serializable, Closeable {
                 }
                 return avroRecords.iterator();
               });
-        } else if (recordType == HoodieRecordType.SPARK) {
-          // TODO we should remove it if we can read InternalRow from source.
-          records = avroRDD.mapPartitions(itr -> {
-            StructType baseStructType = AvroConversionUtils.convertAvroSchemaToStructType(processedAvroSchema.get());
-            StructType targetStructType = isDropPartitionColumns() ? AvroConversionUtils
-                .convertAvroSchemaToStructType(HoodieAvroUtils.removeFields(processedAvroSchema.get(), partitionColumns)) : baseStructType;
-            HoodieAvroDeserializer deserializer = SparkAdapterSupport$.MODULE$.sparkAdapter().createAvroDeserializer(processedAvroSchema.get(), baseStructType);
-
-            return new CloseableMappingIterator<>(ClosableIterator.wrap(itr), rec -> {
-              InternalRow row = (InternalRow) deserializer.deserialize(rec).get();
-              String recordKey = builtinKeyGenerator.getRecordKey(row, baseStructType).toString();
-              String partitionPath = builtinKeyGenerator.getPartitionPath(row, baseStructType).toString();
-              return new HoodieSparkRecord(new HoodieKey(recordKey, partitionPath),
-                  HoodieInternalRowUtils.getCachedUnsafeProjection(baseStructType, targetStructType).apply(row), targetStructType, false);
-            });
-          });
         } else {
           throw new UnsupportedOperationException(recordType.name());
         }
