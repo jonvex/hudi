@@ -98,6 +98,7 @@ import org.apache.hudi.utilities.schema.SchemaProvider;
 import org.apache.hudi.utilities.schema.SchemaSet;
 import org.apache.hudi.utilities.schema.SimpleSchemaProvider;
 import org.apache.hudi.utilities.sources.InputBatch;
+import org.apache.hudi.utilities.sources.Source;
 import org.apache.hudi.utilities.streamer.HoodieStreamer.Config;
 import org.apache.hudi.utilities.transform.Transformer;
 
@@ -300,13 +301,12 @@ public class StreamSync implements Serializable, Closeable {
       this.errorTableWriter = ErrorTableUtils.getErrorTableWriter(cfg, sparkSession, props, hoodieSparkContext, fs);
       this.errorWriteFailureStrategy = ErrorTableUtils.getErrorWriteFailureStrategy(props);
     }
-    this.formatAdapter = new SourceFormatAdapter(
-        UtilHelpers.createSource(cfg.sourceClassName, props, hoodieSparkContext.jsc(), sparkSession, schemaProvider, metrics),
-        this.errorTableWriter, Option.of(props));
+    Source source = UtilHelpers.createSource(cfg.sourceClassName, props, hoodieSparkContext.jsc(), sparkSession, schemaProvider, metrics);
+    this.formatAdapter = new SourceFormatAdapter(source, this.errorTableWriter, Option.of(props));
 
     this.transformer = UtilHelpers.createTransformer(Option.ofNullable(cfg.transformerClassNames),
         Option.ofNullable(schemaProvider).map(SchemaProvider::getSourceSchema), this.errorTableWriter.isPresent());
-    if (this.cfg.operation == WriteOperationType.BULK_INSERT) {
+    if (this.cfg.operation == WriteOperationType.BULK_INSERT && source.getSourceType() != Source.SourceType.AVRO) {
       this.props.setProperty(RECORD_MERGER_IMPLS.key(), HoodieSparkRecordMerger.class.getName());
     }
   }
