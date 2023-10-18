@@ -32,9 +32,13 @@ object HoodieParquetFileFormatHelper {
     val fileStructMap = fileStruct.fields.map(f => (f.name, f.dataType)).toMap
     val sparkRequestStructFields = requiredSchema.map(f => {
       val requiredType = f.dataType
-      if (fileStructMap.contains(f.name) && !isDataTypeEqual(requiredType, fileStructMap(f.name))) {
-        implicitTypeChangeInfo.put(new Integer(requiredSchema.fieldIndex(f.name)), org.apache.hudi.common.util.collection.Pair.of(requiredType, fileStructMap(f.name)))
-        StructField(f.name, fileStructMap(f.name), f.nullable)
+      if (fileStructMap.contains(f.name)) {
+        isDataTypeEqual(requiredType, fileStructMap(f.name)) match {
+          case None => f
+          case Some(castedType) =>
+            implicitTypeChangeInfo.put(new Integer(requiredSchema.fieldIndex(f.name)), org.apache.hudi.common.util.collection.Pair.of(castedType, fileStructMap(f.name)))
+            StructField(f.name, fileStructMap(f.name), f.nullable)
+        }
       } else {
         f
       }
@@ -42,8 +46,8 @@ object HoodieParquetFileFormatHelper {
     (implicitTypeChangeInfo, StructType(sparkRequestStructFields))
   }
 
-  def isDataTypeEqual(requiredType: DataType, fileType: DataType): Boolean = (requiredType, fileType) match {
-    case (requiredType, fileType) if requiredType == fileType => true
+  def isDataTypeEqual(requiredType: DataType, fileType: DataType): Option[DataType] = (requiredType, fileType) match {
+    case (requiredType, fileType) if requiredType == fileType => None
 
     case (ArrayType(rt, _), ArrayType(ft, _)) =>
       // Do not care about nullability as schema evolution require fields to be nullable
@@ -51,7 +55,12 @@ object HoodieParquetFileFormatHelper {
 
     case (MapType(requiredKey, requiredValue, _), MapType(fileKey, fileValue, _)) =>
       // Likewise, do not care about nullability as schema evolution require fields to be nullable
-      isDataTypeEqual(requiredKey, fileKey) && isDataTypeEqual(requiredValue, fileValue)
+      (isDataTypeEqual(requiredKey, fileKey), isDataTypeEqual(requiredValue, fileValue)) match {
+        case (None, None) => None
+        case (None, Some(castedValue)) => Some(MapType(requiredKey, castedValue))
+        case (Some(castedKey), None) => Some(MapType(castedKey, requiredValue))
+        case (Some(castedKey), Some(castedValue)) => Some(MapType(castedKey, castedValue))
+      }
 
     case (StructType(requiredFields), StructType(fileFields)) =>
       // Find fields that are in requiredFields and fileFields as they might not be the same during add column + change column operations
@@ -62,11 +71,19 @@ object HoodieParquetFileFormatHelper {
       val requiredFilteredFields = requiredFields.filter(f => commonFieldNames.contains(f.name)).sortWith(_.name < _.name)
 
       // Sorting ensures that the same field names are being compared for type differences
-      requiredFilteredFields.zip(fileFilteredFields).forall {
-        case (requiredField, fileFilteredField) =>
-          isDataTypeEqual(requiredField.dataType, fileFilteredField.dataType)
+      val fieldZip = requiredFilteredFields.zip(fileFilteredFields)
+      val options  = fieldZip.map(fields => fields._1.name -> isDataTypeEqual(fields._1.dataType, fields._2.dataType)).toMap
+      if (options.values.forall(_.isEmpty)) {
+        None
+      } else {
+        Some(StructType(requiredFields.collect{
+          case f if options.contains(f.name) => options(f.name) match {
+            case Some(casted) => StructField(f.name, casted, f.nullable)
+            case None => f
+          }
+        }))
       }
 
-    case _ => false
+    case _ => Some(requiredType)
   }
 }
