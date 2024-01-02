@@ -69,6 +69,9 @@ public abstract class BaseSparkInternalRowReaderContext extends HoodieReaderCont
 
   @Override
   public Object getValue(InternalRow row, Schema schema, String fieldName) {
+    if (fieldName == null) {
+      return null;
+    }
     StructType structType = getCachedSchema(schema);
     scala.Option<HoodieUnsafeRowUtils.NestedFieldPath> cachedNestedFieldPath =
         HoodieInternalRowUtils.getCachedPosList(structType, fieldName);

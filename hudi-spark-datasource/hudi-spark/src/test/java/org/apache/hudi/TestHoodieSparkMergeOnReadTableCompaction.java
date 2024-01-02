@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.hudi.table.functional;
+package org.apache.hudi;
 
 import org.apache.hudi.client.SparkRDDWriteClient;
 import org.apache.hudi.client.WriteStatus;
@@ -186,7 +186,9 @@ public class TestHoodieSparkMergeOnReadTableCompaction extends SparkClientFuncti
       client.delete(deleteRecords, client.startCommit());
       // insert the same 100 records again
       client.upsert(writeRecords, client.startCommit());
-      System.out.println(spark().read().format("org.apache.hudi").load(basePath()).count());
+      System.out.println("JONVEXLER-> " + spark().read().format("org.apache.hudi")
+          .option(HoodieReaderConfig.FILE_GROUP_READER_ENABLED.key(), "true")
+          .load(basePath()).count());
       Assertions.assertEquals(100, readTableTotalRecordsNum());
     } finally {
       jsc().hadoopConfiguration().set(HoodieReaderConfig.FILE_GROUP_READER_ENABLED.key(), "true");
