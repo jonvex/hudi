@@ -22,6 +22,7 @@ package org.apache.hudi.common.engine;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordMerger;
+import org.apache.hudi.common.table.read.HoodieFileGroupReaderState;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.ClosableIterator;
 
@@ -48,6 +49,12 @@ import java.util.function.UnaryOperator;
  *            and {@code RowData} in Flink.
  */
 public abstract class HoodieReaderContext<T> {
+  protected HoodieFileGroupReaderState<T> readerState = new HoodieFileGroupReaderState<>();
+
+  public HoodieFileGroupReaderState<T> getReaderState() {
+    return readerState;
+  }
+
   // These internal key names are only used in memory for record metadata and merging,
   // and should not be persisted to storage.
   public static final String INTERNAL_META_RECORD_KEY = "_0";
@@ -199,7 +206,10 @@ public abstract class HoodieReaderContext<T> {
    * @param dataFileIterator iterator over data files that were bootstrapped into the hudi table
    * @return iterator that concatenates the skeletonFileIterator and dataFileIterator
    */
-  public abstract ClosableIterator<T> mergeBootstrapReaders(ClosableIterator<T> skeletonFileIterator, ClosableIterator<T> dataFileIterator);
+  public abstract ClosableIterator<T> mergeBootstrapReaders(ClosableIterator<T> skeletonFileIterator,
+                                                            Schema skeletonRequiredSchema,
+                                                            ClosableIterator<T> dataFileIterator,
+                                                            Schema dataRequiredSchema);
 
   /**
    * Creates a function that will reorder records of schema "from" to schema of "to"
@@ -211,6 +221,10 @@ public abstract class HoodieReaderContext<T> {
    */
   public abstract UnaryOperator<T> projectRecord(Schema from, Schema to);
 
+  public UnaryOperator<T> projectRecordUnsafe(Schema from, Schema to, Map<String, String> renamedColumns) {
+    throw new UnsupportedOperationException("Schema on read is not supported for this reader.");
+  }
+
   /**
    * Extracts the record position value from the record itself.
    *
@@ -218,6 +232,13 @@ public abstract class HoodieReaderContext<T> {
    */
   public long extractRecordPosition(T record, Schema schema, String fieldName, long providedPositionIfNeeded) {
     return providedPositionIfNeeded;
+  }
+
+  /**
+   * returns true if record position should be used for merging
+   */
+  public boolean shouldUseRecordPositionMerging() {
+    return false;
   }
 
   /**

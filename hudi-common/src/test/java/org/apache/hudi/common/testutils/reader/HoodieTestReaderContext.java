@@ -164,9 +164,10 @@ public class HoodieTestReaderContext extends HoodieReaderContext<IndexedRecord> 
   }
 
   @Override
-  public ClosableIterator<IndexedRecord> mergeBootstrapReaders(
-      ClosableIterator<IndexedRecord> skeletonFileIterator,
-      ClosableIterator<IndexedRecord> dataFileIterator) {
+  public ClosableIterator<IndexedRecord> mergeBootstrapReaders(ClosableIterator<IndexedRecord> skeletonFileIterator,
+                                                               Schema skeletonRequiredSchema,
+                                                               ClosableIterator<IndexedRecord> dataFileIterator,
+                                                               Schema dataRequiredSchema) {
     return null;
   }
 
@@ -225,5 +226,10 @@ public class HoodieTestReaderContext extends HoodieReaderContext<IndexedRecord> 
     Schema.Field field = recordSchema.getField(fieldName);
     int pos = field.pos();
     return record.get(pos);
+  }
+
+  @Override
+  public boolean shouldUseRecordPositionMerging() {
+    return true;
   }
 }

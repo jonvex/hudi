@@ -19,18 +19,18 @@
 
 package org.apache.hudi.common.table.read;
 
-import org.apache.hudi.common.config.TypedProperties;
-
-import org.apache.avro.Schema;
+import org.apache.hudi.common.model.HoodieRecordMerger;
 
 /**
  * A class holding the state that is needed by {@code HoodieFileGroupReader},
  * e.g., schema, merging strategy, etc.
  */
-public class HoodieFileGroupReaderState {
-  public String tablePath;
-  public String latestCommitTime;
-  public Schema baseFileAvroSchema;
-  public Schema logRecordAvroSchema;
-  public TypedProperties mergeProps = new TypedProperties();
+public class HoodieFileGroupReaderState<T> {
+  public HoodieFileGroupReaderSchemaHandler<T> schemaHandler = null;
+  public String tablePath = null;
+  public String latestCommitTime = null;
+  public HoodieRecordMerger recordMerger = null;
+  public Boolean hasLogFiles = null;
+  public Boolean hasBootstrapBaseFile = null;
+  public Boolean needsBootstrapMerge = null;
 }
