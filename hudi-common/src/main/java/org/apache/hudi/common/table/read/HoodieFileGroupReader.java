@@ -127,12 +127,11 @@ public final class HoodieFileGroupReader<T> implements Closeable {
    * Initialize internal iterators on the base and log files.
    */
   public void initRecordIterators() throws IOException {
-    ClosableIterator<T> iter = makeBaseFileIterator();
     if (logFiles.isEmpty()) {
-      this.baseFileIterator = CachingIterator.wrap(iter, readerContext);
+      this.baseFileIterator = CachingIterator.wrap(makeBaseFileIterator(), readerContext);
     } else {
-      this.baseFileIterator = iter;
       scanLogFiles();
+      this.baseFileIterator = makeBaseFileIterator();
       recordBuffer.setBaseFileIterator(baseFileIterator);
     }
   }
