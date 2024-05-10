@@ -49,11 +49,11 @@ import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.view.FileSystemViewManager;
 import org.apache.hudi.common.table.view.HoodieTableFileSystemView;
+import org.apache.hudi.common.util.BaseFileUtils;
 import org.apache.hudi.common.util.CleanerUtils;
 import org.apache.hudi.common.util.ConfigUtils;
 import org.apache.hudi.common.util.FileIOUtils;
 import org.apache.hudi.common.util.Option;
-import org.apache.hudi.common.util.ParquetUtils;
 import org.apache.hudi.common.util.VisibleForTesting;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.exception.HoodieException;
@@ -73,8 +73,6 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import org.apache.avro.Schema;
 import org.apache.hadoop.fs.Path;
-import org.apache.parquet.avro.AvroSchemaConverter;
-import org.apache.parquet.schema.MessageType;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -1168,20 +1166,18 @@ public class HoodieMetadataTableValidator implements Serializable {
 
     String basePath = metaClient.getBasePathV2().toString();
     HoodieTimeline commitsTimeline = metaClient.getCommitsTimeline();
-    AvroSchemaConverter converter = new AvroSchemaConverter();
     HoodieTimeline completedInstantsTimeline = commitsTimeline.filterCompletedInstants();
     HoodieTimeline inflightInstantsTimeline = commitsTimeline.filterInflights();
 
     for (String logFilePathStr : logFilePathSet) {
       HoodieLogFormat.Reader reader = null;
       try {
-        MessageType messageType =
+        Schema readerSchema =
             TableSchemaResolver.readSchemaFromLogFile(storage, new StoragePath(logFilePathStr));
-        if (messageType == null) {
+        if (readerSchema == null) {
           LOG.warn("Cannot read schema from log file {}. Skip the check as it's likely being written by an inflight instant.", logFilePathStr);
           continue;
         }
-        Schema readerSchema = converter.convert(messageType);
         reader =
             HoodieLogFormat.newReader(storage, new HoodieLogFile(logFilePathStr), readerSchema, false);
         // read the avro blocks
@@ -1404,7 +1400,7 @@ public class HoodieMetadataTableValidator implements Serializable {
             .collect(Collectors.toList());
       } else {
         return baseFileNameList.stream().flatMap(filename ->
-                new ParquetUtils().readRangeFromParquetMetadata(
+                BaseFileUtils.getInstance(HoodieFileFormat.PARQUET).readColumnStatsFromMetadata(
                     metaClient.getStorageConf(),
                     new StoragePath(FSUtils.constructAbsolutePath(metaClient.getBasePathV2(), partitionPath), filename),
                     allColumnNameList).stream())
