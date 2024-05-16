@@ -57,12 +57,10 @@ public class HoodieClusteringJob {
   private final JavaSparkContext jsc;
   private HoodieTableMetaClient metaClient;
 
-  public HoodieClusteringJob(JavaSparkContext jsc, Config cfg) {
+  public HoodieClusteringJob(JavaSparkContext jsc, Config cfg, TypedProperties props) {
     this.cfg = cfg;
     this.jsc = jsc;
-    this.props = StringUtils.isNullOrEmpty(cfg.propsFilePath)
-        ? UtilHelpers.buildProperties(cfg.configs)
-        : readConfigFromFileSystem(jsc, cfg);
+    this.props = props;
     // Disable async cleaning, will trigger synchronous cleaning manually.
     this.props.put(HoodieCleanConfig.ASYNC_CLEAN.key(), false);
     this.metaClient = UtilHelpers.createMetaClient(jsc, cfg.basePath, true);
@@ -72,7 +70,13 @@ public class HoodieClusteringJob {
     }
   }
 
-  private TypedProperties readConfigFromFileSystem(JavaSparkContext jsc, Config cfg) {
+  public HoodieClusteringJob(JavaSparkContext jsc, Config cfg) {
+    this(jsc, cfg, StringUtils.isNullOrEmpty(cfg.propsFilePath)
+        ? UtilHelpers.buildProperties(cfg.configs)
+        : readConfigFromFileSystem(jsc, cfg));
+  }
+
+  private static TypedProperties readConfigFromFileSystem(JavaSparkContext jsc, Config cfg) {
     return UtilHelpers.readConfig(jsc.hadoopConfiguration(), new StoragePath(cfg.propsFilePath), cfg.configs)
         .getProps(true);
   }

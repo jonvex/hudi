@@ -60,12 +60,10 @@ public class HoodieCompactor {
   private final JavaSparkContext jsc;
   private final HoodieTableMetaClient metaClient;
 
-  public HoodieCompactor(JavaSparkContext jsc, Config cfg) {
+  public HoodieCompactor(JavaSparkContext jsc, Config cfg, TypedProperties props) {
     this.cfg = cfg;
     this.jsc = jsc;
-    this.props = cfg.propsFilePath == null
-        ? UtilHelpers.buildProperties(cfg.configs)
-        : readConfigFromFileSystem(jsc, cfg);
+    this.props = props;
     // Disable async cleaning, will trigger synchronous cleaning manually.
     this.props.put(HoodieCleanConfig.ASYNC_CLEAN.key(), false);
     this.metaClient = UtilHelpers.createMetaClient(jsc, cfg.basePath, true);
@@ -75,7 +73,13 @@ public class HoodieCompactor {
     }
   }
 
-  private TypedProperties readConfigFromFileSystem(JavaSparkContext jsc, Config cfg) {
+  public HoodieCompactor(JavaSparkContext jsc, Config cfg) {
+    this(jsc, cfg, cfg.propsFilePath == null
+        ? UtilHelpers.buildProperties(cfg.configs)
+        : readConfigFromFileSystem(jsc, cfg));
+  }
+
+  private static TypedProperties readConfigFromFileSystem(JavaSparkContext jsc, Config cfg) {
     return UtilHelpers.readConfig(jsc.hadoopConfiguration(), new StoragePath(cfg.propsFilePath), cfg.configs)
         .getProps(true);
   }
