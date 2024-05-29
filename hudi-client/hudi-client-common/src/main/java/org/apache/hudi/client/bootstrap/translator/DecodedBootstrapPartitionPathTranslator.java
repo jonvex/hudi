@@ -20,6 +20,9 @@ package org.apache.hudi.client.bootstrap.translator;
 
 import org.apache.hudi.common.util.PartitionPathEncodeUtils;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
 /**
  * URI decodes the partition path
  *
@@ -31,6 +34,16 @@ public class DecodedBootstrapPartitionPathTranslator extends BootstrapPartitionP
 
   @Override
   public String getBootstrapTranslatedPath(String bootStrapPartitionPath) {
-    return PartitionPathEncodeUtils.unescapePathName(bootStrapPartitionPath);
+    String pathMaybeWithHive = PartitionPathEncodeUtils.unescapePathName(bootStrapPartitionPath);
+    if (pathMaybeWithHive.contains("=")) {
+      return Arrays.stream(pathMaybeWithHive.split("/")).map(split -> {
+        if (split.contains("=")) {
+          return split.split("=")[1];
+        } else {
+          return split;
+        }
+      }).collect(Collectors.joining("/"));
+    }
+    return pathMaybeWithHive;
   }
 }
