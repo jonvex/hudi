@@ -60,7 +60,7 @@ object HoodieInternalRowUtils {
         new mutable.HashMap[(StructType, StructType), UnsafeProjection]
     })
 
-  private val schemaMap = new ConcurrentHashMap[Schema, StructType]
+  private val schemaMap = new ConcurrentHashMap[Int, StructType]
   private val orderPosListMap = new ConcurrentHashMap[(StructType, String), Option[NestedFieldPath]]
 
   /**
@@ -108,14 +108,15 @@ object HoodieInternalRowUtils {
   }
 
   def getCachedSchema(schema: Schema): StructType = {
-    val structType = schemaMap.get(schema)
+    val schemaHash = schema.hashCode()
+    val structType = schemaMap.get(schemaHash)
     // NOTE: This specifically designed to do 2 lookups (in case of cache-miss) to avoid
     //       allocating the closure when using [[computeIfAbsent]] on more frequent cache-hit path
     if (structType != null) {
       structType
     } else {
-      schemaMap.computeIfAbsent(schema, new JFunction[Schema, StructType] {
-        override def apply(t: Schema): StructType =
+      schemaMap.computeIfAbsent(schemaHash, new JFunction[Int, StructType] {
+        override def apply(t: Int): StructType =
           convertAvroSchemaToStructType(schema)
       })
     }
