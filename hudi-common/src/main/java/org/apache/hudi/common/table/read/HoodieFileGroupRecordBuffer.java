@@ -107,6 +107,8 @@ public interface HoodieFileGroupRecordBuffer<T> {
    */
   void setBaseFileIterator(ClosableIterator<T> baseFileIterator);
 
+  boolean hasPartialMerges();
+
   /**
    * Check if next merged record exists.
    *

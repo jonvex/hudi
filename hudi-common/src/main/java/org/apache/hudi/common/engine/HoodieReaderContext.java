@@ -58,6 +58,7 @@ public abstract class HoodieReaderContext<T> {
   private String tablePath = null;
   private String latestCommitTime = null;
   private Option<HoodieRecordMerger> recordMerger = null;
+  private Boolean morCanPushFilters = null;
   private Boolean hasLogFiles = null;
   private Boolean hasBootstrapBaseFile = null;
   private Boolean needsBootstrapMerge = null;
@@ -97,6 +98,14 @@ public abstract class HoodieReaderContext<T> {
 
   public void setRecordMerger(Option<HoodieRecordMerger> recordMerger) {
     this.recordMerger = recordMerger;
+  }
+
+  public Boolean getMorCanPushFilters() {
+    return morCanPushFilters;
+  }
+
+  public void setMorCanPushFilters(Boolean canPushFilters) {
+    this.morCanPushFilters = canPushFilters;
   }
 
   // Getter and Setter for hasLogFiles

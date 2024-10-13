@@ -176,6 +176,11 @@ public abstract class HoodieBaseFileGroupRecordBuffer<T> implements HoodieFileGr
     records.clear();
   }
 
+  @Override
+  public boolean hasPartialMerges() {
+    return enablePartialMerging;
+  }
+
   /**
    * Merge two log data records if needed.
    *
