@@ -114,9 +114,10 @@ class SparkFileFormatInternalRowReaderContext(parquetFileReader: SparkParquetRea
 
   private def getSchemaAndFiltersForRead(structType: StructType, hasRowIndexField: Boolean): (StructType, Seq[Filter]) = {
     val schemaForRead = getAppliedRequiredSchema(structType, hasRowIndexField)
-    if (!getHasLogFiles && !getNeedsBootstrapMerge) {
+    val logFileMergeSafe = getMorCanPushFilters || !getHasLogFiles
+    if (logFileMergeSafe && !getNeedsBootstrapMerge) {
       (schemaForRead, allFilters)
-    } else if (!getHasLogFiles && hasRowIndexField) {
+    } else if (logFileMergeSafe && hasRowIndexField) {
       (schemaForRead, bootstrapSafeFilters)
     } else {
       (schemaForRead, requiredFilters)

@@ -78,6 +78,8 @@ public final class HoodieFileGroupReader<T> implements Closeable {
   private ClosableIterator<T> baseFileIterator;
   private final Option<UnaryOperator<T>> outputConverter;
 
+  private boolean isOverwriteMergeMode;
+
   public HoodieFileGroupReader(HoodieReaderContext<T> readerContext,
                                HoodieStorage storage,
                                String tablePath,
@@ -100,6 +102,7 @@ public final class HoodieFileGroupReader<T> implements Closeable {
     this.length = length;
     HoodieTableConfig tableConfig = hoodieTableMetaClient.getTableConfig();
     readerContext.setRecordMerger(readerContext.getRecordMerger(tableConfig.getRecordMergeMode(), tableConfig.getRecordMergerStrategy()));
+    isOverwriteMergeMode = tableConfig.getRecordMergeMode().equals(RecordMergeMode.OVERWRITE_WITH_LATEST);
     readerContext.setTablePath(tablePath);
     readerContext.setLatestCommitTime(latestCommitTime);
     boolean isSkipMerge = ConfigUtils.getStringWithAltKeys(props, HoodieReaderConfig.MERGE_TYPE, true).equalsIgnoreCase(HoodieReaderConfig.REALTIME_SKIP_MERGE);
@@ -136,12 +139,14 @@ public final class HoodieFileGroupReader<T> implements Closeable {
    * Initialize internal iterators on the base and log files.
    */
   public void initRecordIterators() throws IOException {
-    ClosableIterator<T> iter = makeBaseFileIterator();
     if (logFiles.isEmpty()) {
-      this.baseFileIterator = CachingIterator.wrap(iter, readerContext);
+      this.baseFileIterator = CachingIterator.wrap(makeBaseFileIterator(), readerContext);
     } else {
-      this.baseFileIterator = iter;
       scanLogFiles();
+      if (isOverwriteMergeMode) {
+        readerContext.setMorCanPushFilters(recordBuffer.hasPartialMerges());
+      }
+      this.baseFileIterator = makeBaseFileIterator();
       recordBuffer.setBaseFileIterator(baseFileIterator);
     }
   }

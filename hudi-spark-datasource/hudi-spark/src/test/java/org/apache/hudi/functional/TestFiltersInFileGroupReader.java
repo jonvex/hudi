@@ -20,6 +20,7 @@
 package org.apache.hudi.functional;
 
 import org.apache.hudi.common.config.HoodieReaderConfig;
+import org.apache.hudi.common.config.RecordMergeMode;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.config.HoodieWriteConfig;
 
@@ -29,10 +30,11 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.Map;
-
+import java.util.stream.Stream;
 
 /**
  * Ensure that parquet filters are not being pushed down when they shouldn't be
@@ -40,9 +42,18 @@ import java.util.Map;
 @Tag("functional")
 public class TestFiltersInFileGroupReader extends TestBootstrapReadBase {
 
+  private static Stream<Arguments> testArgs() {
+    Stream.Builder<Arguments> b = Stream.builder();
+    b.add(Arguments.of(true, RecordMergeMode.OVERWRITE_WITH_LATEST.name()));
+    b.add(Arguments.of(true, RecordMergeMode.EVENT_TIME_ORDERING.name()));
+    b.add(Arguments.of(false, RecordMergeMode.OVERWRITE_WITH_LATEST.name()));
+    b.add(Arguments.of(false, RecordMergeMode.EVENT_TIME_ORDERING.name()));
+    return b.build();
+  }
+
   @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  public void testFiltersInFileFormat(boolean mergeUseRecordPositions) {
+  @MethodSource("testArgs")
+  public void testFiltersInFileFormat(boolean mergeUseRecordPositions, String mergeMode) {
     this.bootstrapType = "mixed";
     this.dashPartitions = true;
     this.tableType = HoodieTableType.MERGE_ON_READ;
@@ -54,6 +65,7 @@ public class TestFiltersInFileGroupReader extends TestBootstrapReadBase {
 
     //do bootstrap
     Map<String, String> options = setBootstrapOptions();
+    options.put(HoodieWriteConfig.RECORD_MERGE_MODE.key(), mergeMode);
     Dataset<Row> bootstrapDf = sparkSession.emptyDataFrame();
     bootstrapDf.write().format("hudi")
         .options(options)
