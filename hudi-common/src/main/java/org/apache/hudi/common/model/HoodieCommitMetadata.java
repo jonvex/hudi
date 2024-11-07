@@ -249,7 +249,7 @@ public class HoodieCommitMetadata implements Serializable {
     try {
       org.apache.hudi.avro.model.HoodieCommitMetadata commitMetadata = deserializeCommitMetadata(bytes);
       Map<String,List<org.apache.hudi.avro.model.HoodieWriteStat>> partitionToWriteStatsMap =
-              commitMetadata.getPartitionToWriteStats();
+          commitMetadata.getPartitionToWriteStats();
       for (Map.Entry<String, List<org.apache.hudi.avro.model.HoodieWriteStat>> partitionToWriteStat: partitionToWriteStatsMap.entrySet()) {
         for (org.apache.hudi.avro.model.HoodieWriteStat writeStat: partitionToWriteStat.getValue()) {
           HoodieFileGroupId fgId = new HoodieFileGroupId(partitionToWriteStat.getKey(), writeStat.getFileId());
@@ -505,7 +505,11 @@ public class HoodieCommitMetadata implements Serializable {
               convertCommitMetadataToJsonBytes(deserializeCommitMetadata(bytes), org.apache.hudi.avro.model.HoodieCommitMetadata.class)),
           clazz);
     } catch (Exception e) {
-      throw new IOException("unable to read commit metadata for bytes length: " + bytes.length, e);
+      try {
+        return fromJsonString(fromUTF8Bytes(bytes), clazz);
+      } catch (Exception e2) {
+        throw new IOException("unable to read commit metadata", e2);
+      }
     }
   }
 
