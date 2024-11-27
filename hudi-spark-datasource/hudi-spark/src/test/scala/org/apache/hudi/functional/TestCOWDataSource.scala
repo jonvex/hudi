@@ -53,10 +53,10 @@ import org.apache.hudi.util.JFunction
 
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.{DataFrame, DataFrameWriter, Dataset, Encoders, Row, SaveMode, SparkSession, SparkSessionExtensions}
-import org.apache.spark.sql.functions.{col, concat, lit, udf, when}
+import org.apache.spark.sql.functions.{col, concat, lit, to_timestamp, udf, when}
 import org.apache.spark.sql.hudi.HoodieSparkSessionExtension
 import org.apache.spark.sql.types.{ArrayType, BooleanType, DataTypes, DateType, IntegerType, LongType, MapType, StringType, StructField, StructType, TimestampType}
-import org.joda.time.DateTime
+import org.joda.time.{DateTime, DateTimeZone}
 import org.joda.time.format.DateTimeFormat
 import org.junit.jupiter.api.{AfterEach, BeforeEach, Disabled, Test}
 import org.junit.jupiter.api.Assertions.{assertDoesNotThrow, assertEquals, assertFalse, assertTrue, fail}
@@ -65,6 +65,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.{CsvSource, EnumSource, ValueSource}
 
 import java.sql.{Date, Timestamp}
+import java.util.TimeZone
 import java.util.concurrent.{CountDownLatch, TimeUnit}
 import java.util.function.Consumer
 
@@ -1960,6 +1961,40 @@ class TestCOWDataSource extends HoodieSparkClientTestBase with ScalaAssertionSup
     // try reading the empty table
     val count = spark.read.format("hudi").load(basePath).count()
     assertEquals(count, 0)
+  }
+
+  @Test
+  def testVectorizedTimestampColReading(): Unit = {
+
+    val inputformat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"
+    val writeZone = DateTimeZone.forTimeZone(TimeZone.getTimeZone("EST"))
+
+    val timestampColumnValues = Seq.range(0, 192).map(i => Row(i, "idk", new DateTime(
+      2024, 7, 29 + i / 96, (i % 96) / 4, 15 * (i % 4), (i % 96) / 2, (i % 96) * 10, writeZone).toString(inputformat)))
+
+
+    var timestampDf = spark.createDataFrame(spark.sparkContext.parallelize(timestampColumnValues, 1),
+      StructType(Seq(StructField("id", IntegerType), StructField("idk", StringType), StructField("timestamp", StringType))))
+    timestampDf = timestampDf.withColumn("partition", to_timestamp(col("timestamp"), inputformat))
+
+    timestampDf.write.format("hudi")
+      .option("hoodie.datasource.write.recordkey.field", "id")
+      .option("hoodie.datasource.write.partitionpath.field", "idk:simple,partition:timestamp")
+      .option("hoodie.datasource.write.precombine.field", "timestamp")
+      .option("hoodie.table.name", "test_table")
+      .option("hoodie.datasource.write.table.type", "MERGE_ON_READ")
+      .option("hoodie.datasource.write.keygenerator.class", "org.apache.hudi.keygen.CustomKeyGenerator")
+      .option("hoodie.keygen.timebased.timestamp.type", "SCALAR")
+      .option("hoodie.keygen.timebased.timestamp.scalar.time.unit", "MICROSECONDS")
+      .option("hoodie.keygen.timebased.output.dateformat", "yyyy-MM-dd")
+      .option("hoodie.keygen.timebased.input.dateformat", inputformat)
+      .option("hoodie.keygen.timebased.input.timezone", "EST")
+      .option("hoodie.keygen.timebased.output.timezone", "EST")
+      .mode(SaveMode.Overwrite)
+      .save(basePath)
+    spark.read.format("hudi").load(basePath).createOrReplaceTempView("test_table")
+    spark.sql("select * from test_table where partition < '2024-07-29 23:30:47.940000-0400'").orderBy("id").show(500,false)
+    spark.sql("select * from test_table where partition < '2024-07-29 23:30:47.940000-0400'").orderBy("id").show(500,false)
   }
 
 }

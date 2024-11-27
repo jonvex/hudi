@@ -29,12 +29,12 @@ import org.apache.spark.sql.catalyst.optimizer.ReplaceExpressions
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.command._
-import org.apache.spark.sql.execution.datasources.{CreateTable, LogicalRelation}
+import org.apache.spark.sql.execution.datasources.{CreateTable, HoodieFileSourceStrategy, LogicalRelation}
 import org.apache.spark.sql.hudi.HoodieSqlCommonUtils.{isMetaField, removeMetaFields}
 import org.apache.spark.sql.hudi.analysis.HoodieAnalysis.{MatchCreateIndex, MatchCreateTableLike, MatchDropIndex, MatchInsertIntoStatement, MatchMergeIntoTable, MatchRefreshIndex, MatchShowIndexes, ResolvesToHudiTable, sparkAdapter}
 import org.apache.spark.sql.hudi.command._
 import org.apache.spark.sql.hudi.command.procedures.{HoodieProcedures, Procedure, ProcedureArgs}
-import org.apache.spark.sql.{AnalysisException, SparkSession}
+import org.apache.spark.sql.{AnalysisException, SparkSession, Strategy}
 
 import java.util
 
@@ -42,6 +42,7 @@ import scala.collection.mutable.ListBuffer
 
 object HoodieAnalysis extends SparkAdapterSupport {
   type RuleBuilder = SparkSession => Rule[LogicalPlan]
+  type StrategyBuilder = SparkSession => Strategy
 
   def customResolutionRules: Seq[RuleBuilder] = {
     val rules: ListBuffer[RuleBuilder] = ListBuffer()
@@ -147,6 +148,14 @@ object HoodieAnalysis extends SparkAdapterSupport {
     //          - Precedes actual [[customEarlyScanPushDownRules]] invocation
     rules += (spark => HoodiePruneFileSourcePartitions(spark))
 
+    rules.toSeq
+  }
+
+  def customPlannerStrategies: Seq[StrategyBuilder] = {
+    val rules: ListBuffer[StrategyBuilder] = ListBuffer(
+      // Default strategies
+      spark => HoodieFileSourceStrategy
+    )
     rules.toSeq
   }
 

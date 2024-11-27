@@ -22,7 +22,7 @@ import org.apache.hudi.DataSourceReadOptions._
 import org.apache.hudi.HoodieConversionUtils.toJavaOption
 import org.apache.hudi.SparkHoodieTableFileIndex.{deduceQueryType, extractEqualityPredicatesLiteralValues, generateFieldMap, haveProperPartitionValues, shouldListLazily, shouldUsePartitionPathPrefixAnalysis, shouldValidatePartitionColumns}
 import org.apache.hudi.client.common.HoodieSparkEngineContext
-import org.apache.hudi.common.config.{TimestampKeyGeneratorConfig, TypedProperties}
+import org.apache.hudi.common.config.TypedProperties
 import org.apache.hudi.common.model.{FileSlice, HoodieTableQueryType}
 import org.apache.hudi.common.model.HoodieRecord.HOODIE_META_COLUMNS_WITH_OPERATION
 import org.apache.hudi.common.table.{HoodieTableMetaClient, TableSchemaResolver}
@@ -31,8 +31,7 @@ import org.apache.hudi.config.HoodieBootstrapConfig.DATA_QUERIES_ONLY
 import org.apache.hudi.hadoop.fs.HadoopFSUtils
 import org.apache.hudi.internal.schema.Types.RecordType
 import org.apache.hudi.internal.schema.utils.Conversions
-import org.apache.hudi.keygen.{StringPartitionPathFormatter, TimestampBasedAvroKeyGenerator, TimestampBasedKeyGenerator}
-import org.apache.hudi.keygen.constant.KeyGeneratorType
+import org.apache.hudi.keygen.StringPartitionPathFormatter
 import org.apache.hudi.storage.{StoragePath, StoragePathInfo}
 import org.apache.hudi.util.JFunction
 
@@ -122,31 +121,23 @@ class SparkHoodieTableFileIndex(spark: SparkSession,
     val nameFieldMap = generateFieldMap(schema)
 
     if (partitionColumns.isPresent) {
-      // Note that key generator class name could be null
-      val keyGeneratorClassName = tableConfig.getKeyGeneratorClassName
-      if (classOf[TimestampBasedKeyGenerator].getName.equalsIgnoreCase(keyGeneratorClassName)
-        || classOf[TimestampBasedAvroKeyGenerator].getName.equalsIgnoreCase(keyGeneratorClassName)) {
-        val partitionFields: Array[StructField] = partitionColumns.get().map(column => StructField(column, StringType))
-        StructType(partitionFields)
-      } else {
-        val partitionFields: Array[StructField] = partitionColumns.get().filter(column => nameFieldMap.contains(column))
-          .map(column => nameFieldMap.apply(column))
+      val partitionFields: Array[StructField] = partitionColumns.get().filter(column => nameFieldMap.contains(column))
+        .map(column => nameFieldMap.apply(column))
 
-        if (partitionFields.length != partitionColumns.get().length) {
-          val isBootstrapTable = tableConfig.getBootstrapBasePath.isPresent
-          if (isBootstrapTable) {
-            // For bootstrapped tables its possible the schema does not contain partition field when source table
-            // is hive style partitioned. In this case we would like to treat the table as non-partitioned
-            // as opposed to failing
-            new StructType()
-          } else {
-            throw new IllegalArgumentException(s"Cannot find columns: " +
-              s"'${partitionColumns.get().filter(col => !nameFieldMap.contains(col)).mkString(",")}' " +
-              s"in the schema[${schema.fields.mkString(",")}]")
-          }
+      if (partitionFields.length != partitionColumns.get().length) {
+        val isBootstrapTable = tableConfig.getBootstrapBasePath.isPresent
+        if (isBootstrapTable) {
+          // For bootstrapped tables its possible the schema does not contain partition field when source table
+          // is hive style partitioned. In this case we would like to treat the table as non-partitioned
+          // as opposed to failing
+          new StructType()
         } else {
-          new StructType(partitionFields)
+          throw new IllegalArgumentException(s"Cannot find columns: " +
+            s"'${partitionColumns.get().filter(col => !nameFieldMap.contains(col)).mkString(",")}' " +
+            s"in the schema[${schema.fields.mkString(",")}]")
         }
+      } else {
+        new StructType(partitionFields)
       }
     } else {
       // If the partition columns have not stored in hoodie.properties(the table that was
