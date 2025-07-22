@@ -85,6 +85,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.apache.hudi.common.model.HoodieRecord.DEFAULT_ORDERING_VALUE;
 import static org.apache.hudi.common.testutils.HoodieTestUtils.COMMIT_METADATA_SER_DE;
 import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FILE_NAME_GENERATOR;
 import static org.apache.hudi.common.util.StringUtils.getUTF8Bytes;
@@ -913,7 +914,7 @@ Generate random record using TRIP_ENCODED_DECIMAL_SCHEMA
 
   public HoodieRecord generateDeleteRecord(HoodieKey key) throws IOException {
     RawTripTestPayload payload =
-        new RawTripTestPayload(Option.empty(), key.getRecordKey(), key.getPartitionPath(), null, true, 0L);
+        new RawTripTestPayload(Option.empty(), key.getRecordKey(), key.getPartitionPath(), null, true, DEFAULT_ORDERING_VALUE);
     return new HoodieAvroRecord(key, payload);
   }
 
@@ -1330,6 +1331,9 @@ Generate random record using TRIP_ENCODED_DECIMAL_SCHEMA
 
     // Bytes
     public boolean bytesToStringSupport = true;
+
+    // TODO: [HUDI-9607] Flink VARBINARY in array and map
+    public boolean supportBytesInArrayMap = true;
   }
 
   private enum SchemaEvolutionTypePromotionCase {
@@ -1424,13 +1428,13 @@ Generate random record using TRIP_ENCODED_DECIMAL_SCHEMA
     if (toplevel) {
       if (configs.mapSupport) {
         List<Schema.Field> mapFields = new ArrayList<>(baseFields.size());
-        addFieldsHelper(mapFields, baseFields, fieldPrefix + "Map");
+        addFieldsHelper(mapFields, baseFields, fieldPrefix + "Map", !configs.supportBytesInArrayMap);
         finalFields.add(new Schema.Field(fieldPrefix + "Map", Schema.createMap(Schema.createRecord("customMapRecord", "", namespace, false, mapFields)), "", null));
       }
 
-      if (configs.arraySupport) {
+      if (configs.arraySupport && configs.anyArraySupport) {
         List<Schema.Field> arrayFields = new ArrayList<>(baseFields.size());
-        addFieldsHelper(arrayFields, baseFields, fieldPrefix + "Array");
+        addFieldsHelper(arrayFields, baseFields, fieldPrefix + "Array", !configs.supportBytesInArrayMap);
         finalFields.add(new Schema.Field(fieldPrefix + "Array", Schema.createArray(Schema.createRecord("customArrayRecord", "", namespace, false, arrayFields)), "", null));
       }
     }
@@ -1438,12 +1442,21 @@ Generate random record using TRIP_ENCODED_DECIMAL_SCHEMA
   }
 
   private static void addFieldsHelper(List<Schema.Field> finalFields, List<Schema.Type> baseFields, String fieldPrefix) {
+    addFieldsHelper(finalFields, baseFields, fieldPrefix, false);
+  }
+
+  // TODO: [HUDI-9603] remove replaceBytesWithStrings when the issue is fixed
+  private static void addFieldsHelper(List<Schema.Field> finalFields, List<Schema.Type> baseFields, String fieldPrefix, boolean replaceBytesWithStrings) {
     for (int i = 0; i < baseFields.size(); i++) {
       if (baseFields.get(i) == Schema.Type.BOOLEAN) {
         // boolean fields are added fields
         finalFields.add(new Schema.Field(fieldPrefix + i, AvroSchemaUtils.createNullableSchema(Schema.Type.BOOLEAN), "", null));
       } else {
-        finalFields.add(new Schema.Field(fieldPrefix + i, Schema.create(baseFields.get(i)), "", null));
+        Schema.Type type = baseFields.get(i);
+        if (replaceBytesWithStrings && type == Schema.Type.BYTES) {
+          type = Schema.Type.STRING;
+        }
+        finalFields.add(new Schema.Field(fieldPrefix + i, Schema.create(type), "", null));
       }
     }
   }
