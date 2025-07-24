@@ -40,12 +40,10 @@ class HoodieIncrementalFileIndex(override val spark: SparkSession,
                                  override val options: Map[String, String],
                                  @transient override val fileStatusCache: FileStatusCache = NoopCache,
                                  override val includeLogFiles: Boolean,
-                                 override val shouldEmbedFileSlices: Boolean)
+                                 mergeOnReadIncrementalRelation: MergeOnReadIncrementalRelation)
   extends HoodieFileIndex(
-    spark, metaClient, schemaSpec, options, fileStatusCache, includeLogFiles, shouldEmbedFileSlices
+    spark, metaClient, schemaSpec, options, fileStatusCache, includeLogFiles, shouldEmbedFileSlices = true
   ) with FileIndex {
-  val mergeOnReadIncrementalRelation: MergeOnReadIncrementalRelationV2 = MergeOnReadIncrementalRelationV2(
-    spark.sqlContext, options, metaClient, schemaSpec, schemaSpec)
 
   override def listFiles(partitionFilters: Seq[Expression], dataFilters: Seq[Expression]): Seq[PartitionDirectory] = {
     hasPushedDownPartitionPredicates = true
