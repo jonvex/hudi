@@ -248,6 +248,10 @@ public class SerDeHelper {
           return Types.StringType.get();
         case UUID:
           return Types.UUIDType.get();
+        case UUID_FIXED:
+          return Types.UUIDFixedType.get();
+        case UUID_STRING:
+          return Types.UUIDStringType.get();
         case BINARY:
           return Types.BinaryType.get();
         default:

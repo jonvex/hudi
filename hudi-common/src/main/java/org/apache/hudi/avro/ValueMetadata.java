@@ -29,6 +29,7 @@ import org.apache.parquet.schema.LogicalTypeTokenParser;
 import org.apache.parquet.schema.PrimitiveType;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 
 import static org.apache.hudi.avro.AvroSchemaUtils.resolveNullableSchema;
 import static org.apache.hudi.metadata.HoodieMetadataPayload.COLUMN_STATS_FIELD_VALUE_TYPE;
@@ -62,6 +63,11 @@ public class ValueMetadata implements Serializable {
   }
 
   public Object wrapValue(Comparable<?> value) {
+    if (value != null && value instanceof ByteBuffer) {
+      if (((ByteBuffer) value).capacity() == 0) {
+        throw new IllegalArgumentException("ByteBuffer cannot be empty");
+      }
+    }
     return this.getValueType().wrapValue(value, this);
   }
 

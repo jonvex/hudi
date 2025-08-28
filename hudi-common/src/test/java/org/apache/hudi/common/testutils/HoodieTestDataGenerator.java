@@ -162,7 +162,9 @@ public class HoodieTestDataGenerator implements AutoCloseable {
           + "{\"name\":\"event_date\",\"type\":{\"type\":\"int\",\"logicalType\":\"date\"}},"
           + "{\"name\":\"dec_plain_large\",\"type\":{\"type\":\"bytes\",\"logicalType\":\"decimal\",\"precision\":20,\"scale\":10}},"
           + "{\"name\":\"dec_fixed_small\",\"type\":{\"type\":\"fixed\",\"name\":\"decFixedSmall\",\"size\":3,\"logicalType\":\"decimal\",\"precision\":5,\"scale\":2}},"
-          + "{\"name\":\"dec_fixed_large\",\"type\":{\"type\":\"fixed\",\"name\":\"decFixedLarge\",\"size\":8,\"logicalType\":\"decimal\",\"precision\":18,\"scale\":9}},";
+          + "{\"name\":\"dec_fixed_large\",\"type\":{\"type\":\"fixed\",\"name\":\"decFixedLarge\",\"size\":8,\"logicalType\":\"decimal\",\"precision\":18,\"scale\":9}},"
+          + "{\"name\":\"user_id_string\",\"type\":{\"type\":\"string\",\"logicalType\":\"uuid\"}},"
+          + "{\"name\":\"user_id_fixed\",\"type\":{\"type\":\"fixed\",\"name\":\"userIdFixed\",\"size\":16,\"logicalType\":\"uuid\"}},";
 
   public static final String EXTRA_COL_SCHEMA1 = "{\"name\": \"extra_column1\", \"type\": [\"null\", \"string\"], \"default\": null },";
   public static final String EXTRA_COL_SCHEMA2 = "{\"name\": \"extra_column2\", \"type\": [\"null\", \"string\"], \"default\": null},";
@@ -706,18 +708,27 @@ Generate random record using TRIP_ENCODED_DECIMAL_SCHEMA
 
     // Assign thresholded decimals
 
-    rec.put("dec_plain_large", Base64.getEncoder().encodeToString((above
+    rec.put("dec_plain_large", ByteBuffer.wrap((above
         ? decPlainLargeThreshold.add(incLargeScale10)
         : decPlainLargeThreshold.subtract(incLargeScale10)).unscaledValue().toByteArray()));
 
-    rec.put("dec_fixed_small", Base64.getEncoder().encodeToString((above
+    Conversions.DecimalConversion decimalConversions = new Conversions.DecimalConversion();
+    Schema decFixedSmallSchema = AVRO_TRIP_LOGICAL_TYPES_SCHEMA.getField("dec_fixed_small").schema();
+    rec.put("dec_fixed_small", decimalConversions.toFixed(above
         ? decFixedSmallThreshold.add(incSmallScale2)
-        : decFixedSmallThreshold.subtract(incSmallScale2)).unscaledValue().toByteArray()));
+        : decFixedSmallThreshold.subtract(incSmallScale2), decFixedSmallSchema, LogicalTypes.decimal(5, 2)));
 
-    rec.put("dec_fixed_large", Base64.getEncoder().encodeToString((above
+    Schema decFixedLargeSchema = AVRO_TRIP_LOGICAL_TYPES_SCHEMA.getField("dec_fixed_large").schema();
+    rec.put("dec_fixed_large", decimalConversions.toFixed(above
         ? decFixedLargeThreshold.add(incLargeScale9)
-        : decFixedLargeThreshold.subtract(incLargeScale9)).unscaledValue().toByteArray()));
+        : decFixedLargeThreshold.subtract(incLargeScale9), decFixedLargeSchema, LogicalTypes.decimal(18, 9)));
 
+    String userId = above
+        ? "80000000-0000-0000-0000-000000000001"
+        : "7fffffff-ffff-ffff-ffff-ffffffffffff";
+    rec.put("user_id_string", userId);
+
+    rec.put("user_id_fixed", new GenericData.Fixed(AVRO_TRIP_LOGICAL_TYPES_SCHEMA.getField("user_id_fixed").schema(), getUTF8Bytes(userId)));
     generateTripSuffixValues(rec, isDeleteRecord);
     return rec;
   }

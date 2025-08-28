@@ -480,6 +480,42 @@ public class Types {
     }
   }
 
+  public static class UUIDStringType extends PrimitiveType {
+    private static final UUIDStringType INSTANCE = new UUIDStringType();
+
+    public static UUIDStringType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.UUID_STRING;
+    }
+
+    @Override
+    public String toString() {
+      return "uuid-string";
+    }
+  }
+
+  public static class UUIDFixedType extends PrimitiveType {
+    private static final UUIDFixedType INSTANCE = new UUIDFixedType();
+
+    public static UUIDFixedType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.UUID_FIXED;
+    }
+
+    @Override
+    public String toString() {
+      return "uuid-fixed";
+    }
+  }
+
   public static class TimeMillisType extends PrimitiveType {
     private static final TimeMillisType INSTANCE = new TimeMillisType();
 

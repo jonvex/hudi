@@ -278,7 +278,10 @@ public class SparkInternalSchemaConverter {
         return TimestampNTZType$.MODULE$;
       case STRING:
         return StringType$.MODULE$;
+      case UUID_FIXED:
+        return BinaryType$.MODULE$;
       case UUID:
+      case UUID_STRING:
         return StringType$.MODULE$;
       case FIXED:
         return BinaryType$.MODULE$;

@@ -292,6 +292,9 @@ public class ParquetUtils extends FileFormatUtils {
                 .map(columnChunkMetaData -> {
                   Statistics stats = columnChunkMetaData.getStatistics();
                   ValueMetadata valueMetadata = ValueMetadata.getValueMetadata(columnChunkMetaData.getPrimitiveType(), indexVersion);
+                  if (valueMetadata.getValueType() == ValueType.UUID) {
+                    throw new UnsupportedOperationException("UUID is not supported");
+                  }
                   return (HoodieColumnRangeMetadata<Comparable>) HoodieColumnRangeMetadata.<Comparable>create(
                       filePath,
                       columnChunkMetaData.getPath().toDotString(),

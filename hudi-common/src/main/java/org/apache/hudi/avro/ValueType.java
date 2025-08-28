@@ -71,7 +71,7 @@ public enum ValueType {
   FIXED(HoodieAvroWrapperUtils.PrimitiveWrapperType.BYTES, ValueType::castToFixed),
   DECIMAL(BigDecimal.class, HoodieAvroWrapperUtils.PrimitiveWrapperType.BYTES,
       ValueType::castToDecimal, ValueType::toDecimal, ValueType::fromDecimal),
-  UUID(UUID.class, HoodieAvroWrapperUtils.PrimitiveWrapperType.STRING,
+  UUID(UUID.class, HoodieAvroWrapperUtils.PrimitiveWrapperType.BYTES,
       ValueType::castToUUID, ValueType::toUUID, ValueType::fromUUID),
   DATE(Date.class, HoodieAvroWrapperUtils.PrimitiveWrapperType.INT,
       ValueType::castToDate, ValueType::toDate, ValueType::fromDate),
@@ -267,6 +267,8 @@ public enum ValueType {
           return ValueType.FIXED;
         } else if (schema.getLogicalType() instanceof LogicalTypes.Decimal) {
           return ValueType.DECIMAL;
+        } else if (Objects.equals(schema.getLogicalType().getName(), LogicalTypes.uuid().getName())) {
+          return ValueType.UUID;
         }
         throw new IllegalArgumentException("Unsupported logical type for Fixed: " + schema.getLogicalType());
       case UNION:
@@ -443,6 +445,11 @@ public enum ValueType {
       return (UUID) val;
     } else if (val instanceof String) {
       return java.util.UUID.fromString((String) val);
+    } else if (val instanceof ByteBuffer) {
+      if (((ByteBuffer) val).capacity() == 0) {
+        return null;
+      }
+      return toUUID((ByteBuffer) val, meta);
     } else {
       throw new UnsupportedOperationException("Unable to convert UUID: " + val.getClass());
     }
@@ -554,11 +561,20 @@ public enum ValueType {
   }
 
   public static UUID toUUID(Comparable<?> val, ValueMetadata meta) {
-    return java.util.UUID.fromString((String) val);
+    ByteBuffer byteBuffer = (ByteBuffer) val;
+    if (byteBuffer.capacity() < 16) {
+      throw new UnsupportedOperationException("Unable to convert UUID: " + val.getClass());
+    }
+    long high = byteBuffer.getLong();
+    long low = byteBuffer.getLong();
+    return new java.util.UUID(high, low);
   }
 
-  public static String fromUUID(Comparable<?> val, ValueMetadata meta) {
-    return ((UUID) val).toString();
+  public static ByteBuffer fromUUID(Comparable<?> val, ValueMetadata meta) {
+    ByteBuffer bb = ByteBuffer.wrap(new byte[16]);
+    bb.putLong(((UUID) val).getMostSignificantBits());
+    bb.putLong(((UUID) val).getLeastSignificantBits());
+    return bb;
   }
 
   public static java.sql.Date toDate(Comparable<?> val, ValueMetadata meta) {

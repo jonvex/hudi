@@ -802,6 +802,11 @@ public class TestHoodieDeltaStreamer extends HoodieDeltaStreamerTestBase {
     assertEquals("decimal", tableSchema.getField("dec_fixed_large").schema().getLogicalType().getName());
     assertEquals(18, ((LogicalTypes.Decimal) tableSchema.getField("dec_fixed_large").schema().getLogicalType()).getPrecision());
     assertEquals(9, ((LogicalTypes.Decimal) tableSchema.getField("dec_fixed_large").schema().getLogicalType()).getScale());
+    assertEquals("uuid", tableSchema.getField("user_id_string").schema().getLogicalType().getName());
+    assertEquals("string", tableSchema.getField("user_id_string").schema().getType().getName());
+    assertEquals("uuid", tableSchema.getField("user_id_fixed").schema().getLogicalType().getName());
+    assertEquals("fixed", tableSchema.getField("user_id_fixed").schema().getType().getName());
+    assertEquals(16, tableSchema.getField("user_id_fixed").schema().getFixedSize());
 
     sqlContext.clearCache();
     Dataset<Row> df = sqlContext.read()
@@ -950,6 +955,32 @@ public class TestHoodieDeltaStreamer extends HoodieDeltaStreamerTestBase {
     assertEquals(totalCount, df.filter("dec_fixed_large >= 987654321.123456788").count());
     assertEquals(0, df.filter("dec_fixed_large > 987654321.123456790").count());
     assertEquals(totalCount, df.filter("dec_fixed_large <= 987654321.123456790").count());
+
+    assertTrue(
+        Math.abs(df.filter("user_id_string < '80000000-0000-0000-0000-000000000000'").count() - expectedHalf) <= tolerance,
+        "user_id_string < threshold not within tolerance"
+    );
+    assertTrue(
+        Math.abs(df.filter("user_id_string > '80000000-0000-0000-0000-000000000000'").count() - expectedHalf) <= tolerance,
+        "user_id_string > threshold not within tolerance"
+    );
+    assertEquals(0, df.filter("user_id_string < '7fffffff-ffff-ffff-ffff-ffffffffffff'").count());
+    assertEquals(totalCount, df.filter("user_id_string >= '7fffffff-ffff-ffff-ffff-ffffffffffff'").count());
+    assertEquals(0, df.filter("user_id_string > '80000000-0000-0000-0000-000000000001'").count());
+    assertEquals(totalCount, df.filter("user_id_string <= '80000000-0000-0000-0000-000000000001'").count());
+
+    assertTrue(
+        Math.abs(df.filter("user_id_fixed < '80000000-0000-0000-0000-000000000000'").count() - expectedHalf) <= tolerance,
+        "user_id_fixed < threshold not within tolerance"
+    );
+    assertTrue(
+        Math.abs(df.filter("user_id_fixed > '80000000-0000-0000-0000-000000000000'").count() - expectedHalf) <= tolerance,
+        "user_id_fixed > threshold not within tolerance"
+    );
+    assertEquals(0, df.filter("user_id_fixed < '7fffffff-ffff-ffff-ffff-ffffffffffff'").count());
+    assertEquals(totalCount, df.filter("user_id_fixed >= '7fffffff-ffff-ffff-ffff-ffffffffffff'").count());
+    assertEquals(0, df.filter("user_id_fixed > '80000000-0000-0000-0000-000000000001'").count());
+    assertEquals(totalCount, df.filter("user_id_fixed <= '80000000-0000-0000-0000-000000000001'").count());
   }
 
   private static Stream<Arguments> continuousModeArgs() {

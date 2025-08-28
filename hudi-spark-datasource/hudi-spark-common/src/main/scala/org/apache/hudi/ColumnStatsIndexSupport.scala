@@ -49,6 +49,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.storage.StorageLevel
 
 import java.nio.ByteBuffer
+import java.util.UUID
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.TreeSet
@@ -505,9 +506,10 @@ object ColumnStatsIndexSupport {
       // Standard types
       case StringType =>
         if (valueMetadata.getValueType.equals(ValueType.V1)
-          || valueMetadata.getValueType.equals(ValueType.STRING)
-          || valueMetadata.getValueType.equals(ValueType.UUID)) {
+          || valueMetadata.getValueType.equals(ValueType.STRING)) {
           value
+        } else if (valueMetadata.getValueType.equals(ValueType.UUID)) {
+          value.asInstanceOf[UUID].toString
         } else {
           throw new UnsupportedOperationException(s"Cannot deserialize value for StringType: unexpected type ${valueMetadata.getValueType.name()}")
         }
@@ -588,6 +590,9 @@ object ColumnStatsIndexSupport {
             throw new UnsupportedOperationException(s"Cannot deserialize value for DecimalType: unexpected type ${other.getClass.getName}")
         }
       case BinaryType =>
+        if (valueMetadata.getValueType.equals(ValueType.UUID)) {
+          throw new UnsupportedOperationException(s"Cannot deserialize value for BinaryType: unexpected type ${valueMetadata.getValueType.name()}")
+        }
         value match {
           case b: ByteBuffer => toBytes(b)
           case other => other

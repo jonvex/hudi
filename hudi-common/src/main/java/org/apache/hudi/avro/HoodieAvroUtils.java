@@ -88,6 +88,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1275,6 +1276,28 @@ public class HoodieAvroUtils {
             return DECIMAL_CONVERSION.toFixed(bigDecimal, newSchema, newSchema.getLogicalType());
           } else if (oldSchema.getType() == Schema.Type.BYTES) {
             return convertBytesToFixed(((ByteBuffer) oldValue).array(), newSchema);
+          }
+        }
+
+        if (newSchema.getLogicalType() != null && "uuid".equals(newSchema.getLogicalType().getName())) {
+          if (oldSchema.getType() == Schema.Type.STRING) {
+            ByteBuffer bb = ByteBuffer.allocate(16);
+            UUID uuid = UUID.fromString(oldValue.toString());
+            bb.putLong(uuid.getMostSignificantBits());
+            bb.putLong(uuid.getLeastSignificantBits());
+            return new GenericData.Fixed(newSchema, bb.array());
+          }
+        }
+
+        if (oldSchema.getType() == Schema.Type.BYTES) {
+          ByteBuffer buffer = (ByteBuffer) oldValue;
+          byte[] bytes = new byte[buffer.remaining()];
+          buffer.get(bytes);
+
+          if (bytes.length <= newSchema.getFixedSize()) {
+            // pad to fixed size if necessary
+            byte[] fixedBytes = Arrays.copyOf(bytes, newSchema.getFixedSize());
+            return new GenericData.Fixed(newSchema, fixedBytes);
           }
         }
         break;

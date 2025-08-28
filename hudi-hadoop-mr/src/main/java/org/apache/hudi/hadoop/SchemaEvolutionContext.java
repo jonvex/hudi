@@ -324,6 +324,8 @@ public class SchemaEvolutionContext {
       case LOCAL_TIMESTAMP_MILLIS:
       case STRING:
       case UUID:
+      case UUID_FIXED:
+      case UUID_STRING:
       case FIXED:
       case BINARY:
       case DECIMAL:

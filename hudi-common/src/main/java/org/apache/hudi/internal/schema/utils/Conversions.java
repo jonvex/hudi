@@ -36,6 +36,8 @@ public class Conversions {
           Type.TypeID.DECIMAL_BYTES,
           Type.TypeID.DOUBLE,
           Type.TypeID.UUID,
+          Type.TypeID.UUID_FIXED,
+          Type.TypeID.UUID_STRING,
           Type.TypeID.DATE,
           Type.TypeID.STRING));
 

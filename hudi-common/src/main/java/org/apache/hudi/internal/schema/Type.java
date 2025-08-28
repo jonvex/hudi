@@ -65,6 +65,8 @@ public interface Type extends Serializable {
     TIMESTAMP(Long.class),
     DECIMAL(BigDecimal.class),
     UUID(UUID.class),
+    UUID_STRING(UUID.class),
+    UUID_FIXED(UUID.class),
     DECIMAL_BYTES(BigDecimal.class),
     DECIMAL_FIXED(BigDecimal.class),
     TIME_MILLIS(Integer.class),
@@ -120,6 +122,8 @@ public interface Type extends Serializable {
       case DOUBLE:
         return Double.parseDouble(partitionValue);
       case UUID:
+      case UUID_STRING:
+      case UUID_FIXED:
         return UUID.fromString(partitionValue);
       case DATE:
         // TODO Support different date format

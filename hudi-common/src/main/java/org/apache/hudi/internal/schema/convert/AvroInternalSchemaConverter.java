@@ -363,7 +363,13 @@ public class AvroInternalSchemaConverter {
       } else if (logical instanceof LogicalTypes.LocalTimestampMicros) {
         return Types.LocalTimestampMicrosType.get();
       } else if (LogicalTypes.uuid().getName().equals(name)) {
-        return Types.UUIDType.get();
+        if (primitive.getType() == Schema.Type.FIXED) {
+          return Types.UUIDFixedType.get();
+        } else if (primitive.getType() == Schema.Type.STRING) {
+          return Types.UUIDStringType.get();
+        } else {
+          throw new IllegalArgumentException("Unsupported primitive type for UUID: " + primitive.getType().getName());
+        }
       }
     }
 
@@ -571,12 +577,17 @@ public class AvroInternalSchemaConverter {
       case BINARY:
         return Schema.create(Schema.Type.BYTES);
 
-      case UUID: {
+      case UUID:
+      case UUID_FIXED: {
         // NOTE: All schemas corresponding to Avro's type [[FIXED]] are generated
         //       with the "fixed" name to stay compatible w/ [[SchemaConverters]]
         String name = recordName + AVRO_NAME_DELIMITER + "fixed";
         Schema fixedSchema = Schema.createFixed(name, null, null, 16);
         return LogicalTypes.uuid().addToSchema(fixedSchema);
+      }
+
+      case UUID_STRING: {
+        return LogicalTypes.uuid().addToSchema(Schema.create(Schema.Type.STRING));
       }
 
       case FIXED: {
