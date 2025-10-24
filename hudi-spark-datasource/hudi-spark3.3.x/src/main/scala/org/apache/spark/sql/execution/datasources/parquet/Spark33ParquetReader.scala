@@ -100,10 +100,16 @@ class Spark33ParquetReader(enableVectorizedReader: Boolean,
     val split = new FileSplit(filePath, file.start, file.length, Array.empty[String])
 
     val schemaEvolutionUtils = new ParquetSchemaEvolutionUtils(sharedConf, filePath, requiredSchema,
-      partitionSchema, internalSchemaOpt, tableSchemaOpt)
+      partitionSchema, internalSchemaOpt)
 
-    lazy val fileFooter = repairFooterSchema(
-      ParquetFooterReader.readFooter(sharedConf, filePath, SKIP_ROW_GROUPS), tableSchemaOpt)
+    lazy val fileFooter = repairFooterSchema( if (enableVectorizedReader) {
+      // When there are vectorized reads, we can avoid reading the footer twice by reading
+      // all row groups in advance and filter row groups according to filters that require
+      // push down (no need to read the footer metadata again).
+      Spark33ParquetFooterReader.readFooter(sharedConf, file, filePath, Spark33ParquetFooterReader.WITH_ROW_GROUPS)
+    } else {
+      Spark33ParquetFooterReader.readFooter(sharedConf, file, filePath, Spark33ParquetFooterReader.SKIP_ROW_GROUPS)
+    }, tableSchemaOpt)
 
     lazy val footerFileMetaData = fileFooter.getFileMetaData
     val datetimeRebaseSpec = DataSourceUtils.datetimeRebaseSpec(
@@ -161,14 +167,26 @@ class Spark33ParquetReader(enableVectorizedReader: Boolean,
     }
     val taskContext = Option(TaskContext.get())
     if (enableVectorizedReader) {
-      val vectorizedReader = schemaEvolutionUtils.buildVectorizedReader(
-        convertTz.orNull,
-        datetimeRebaseSpec.mode.toString,
-        datetimeRebaseSpec.timeZone,
-        int96RebaseSpec.mode.toString,
-        int96RebaseSpec.timeZone,
-        enableOffHeapColumnVector && taskContext.isDefined,
-        capacity)
+      val vectorizedReader = if (schemaEvolutionUtils.shouldUseInternalSchema) {
+        new HoodieSpark33VectorizedParquetRecordReader(
+          convertTz.orNull,
+          datetimeRebaseSpec.mode.toString,
+          datetimeRebaseSpec.timeZone,
+          int96RebaseSpec.mode.toString,
+          int96RebaseSpec.timeZone,
+          enableOffHeapColumnVector && taskContext.isDefined,
+          capacity,
+          schemaEvolutionUtils.typeChangeInfos)
+      } else {
+        new Spark33VectorizedParquetRecordReader(
+          convertTz.orNull,
+          datetimeRebaseSpec.mode.toString,
+          datetimeRebaseSpec.timeZone,
+          int96RebaseSpec.mode.toString,
+          int96RebaseSpec.timeZone,
+          enableOffHeapColumnVector && taskContext.isDefined,
+          capacity)
+      }
       // SPARK-37089: We cannot register a task completion listener to close this iterator here
       // because downstream exec nodes have already registered their listeners. Since listeners
       // are executed in reverse order of registration, a listener registered here would close the
@@ -178,7 +196,7 @@ class Spark33ParquetReader(enableVectorizedReader: Boolean,
       // Instead, we use FileScanRDD's task completion listener to close this iterator.
       val iter = new RecordReaderIterator(vectorizedReader)
       try {
-        vectorizedReader.initialize(split, hadoopAttemptContext)
+        vectorizedReader.initialize(split, hadoopAttemptContext, Option.apply(fileFooter))
         vectorizedReader.initBatch(partitionSchema, file.partitionValues)
         if (returningBatch) {
           vectorizedReader.enableReturningBatches()
@@ -199,7 +217,8 @@ class Spark33ParquetReader(enableVectorizedReader: Boolean,
         convertTz,
         enableVectorizedReader = false,
         datetimeRebaseSpec,
-        int96RebaseSpec)
+        int96RebaseSpec,
+        tableSchemaOpt)
       val reader = if (pushed.isDefined && enableRecordFilter) {
         val parquetFilter = FilterCompat.get(pushed.get, null)
         new ParquetRecordReader[InternalRow](readSupport, parquetFilter)
@@ -211,7 +230,7 @@ class Spark33ParquetReader(enableVectorizedReader: Boolean,
         reader.initialize(split, hadoopAttemptContext)
 
         val fullSchema = requiredSchema.toAttributes ++ partitionSchema.toAttributes
-        val unsafeProjection = schemaEvolutionUtils.generateUnsafeProjection(fullSchema, timeZoneId, footerFileMetaData.getSchema)
+        val unsafeProjection = schemaEvolutionUtils.generateUnsafeProjection(fullSchema, timeZoneId)
 
         if (partitionSchema.length == 0) {
           // There is no partition columns
@@ -298,7 +317,6 @@ object Spark33ParquetReader extends SparkParquetReaderBuilder {
         repairedSchema,
         oldMeta.getKeyValueMetaData,
         oldMeta.getCreatedBy,
-        oldMeta.getEncryptionType,
         oldMeta.getFileDecryptor
       ),
       original.getBlocks

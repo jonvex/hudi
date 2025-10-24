@@ -128,7 +128,7 @@ class ParquetSchemaEvolutionUtils(sharedConf: Configuration,
     }
   }
 
-  protected var typeChangeInfos: java.util.Map[Integer, Pair[DataType, DataType]] = null
+  var typeChangeInfos: java.util.Map[Integer, Pair[DataType, DataType]] = null
 
   def getHadoopConfClone(footerFileMetaData: FileMetaData, enableVectorizedReader: Boolean): Configuration = {
     // Clone new conf
